@@ -161,7 +161,7 @@ function BookPage() {
     }
     setSubmitting(true);
     try {
-      await confirmBooking({
+      const booking = await confirmBooking({
         holder: holderRef.current,
         serviceId: service.id,
         staffId: picked.staffId,
@@ -170,8 +170,12 @@ function BookPage() {
         email: form.email.trim(),
         phone: form.phone.trim(),
       });
-      setConfirmed({ when: fmtDateTime(picked.startAt), staff: picked.staffName });
       setLockExpiresAt(null);
+      if (booking && (booking as any).id) {
+        navigate({ to: "/pay/$bookingId", params: { bookingId: (booking as any).id } });
+        return;
+      }
+      setConfirmed({ when: fmtDateTime(picked.startAt), staff: picked.staffName });
     } catch (e: any) {
       const msg = e?.message ?? "";
       if (msg.includes("lock_invalid")) {
