@@ -22,10 +22,17 @@ export const Route = createFileRoute("/auth/provider")({
 function ProviderAuth() {
   const { mode = "login" } = useSearch({ from: "/auth/provider" });
   const navigate = useNavigate();
-  const { refresh } = useAuth();
+  const { refresh, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // If user lands here already authenticated (e.g. returning from Google OAuth), route them.
+  useEffect(() => {
+    if (authLoading) return;
+    if (user) { void postAuth(user.id); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   async function ensureRole(_uid: string) {
     await supabase.rpc("assign_my_role", { p_role: "provider" });
