@@ -164,6 +164,33 @@ export type Database = {
         }
         Relationships: []
       }
+      business_invites: {
+        Row: {
+          accepted_at: string | null
+          business_id: string
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          business_id: string
+          created_at?: string
+          email: string
+          id?: string
+          invited_by: string
+        }
+        Update: {
+          accepted_at?: string | null
+          business_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string
+        }
+        Relationships: []
+      }
       business_owners: {
         Row: {
           business_id: string
@@ -633,6 +660,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_pending_business_invites: { Args: never; Returns: number }
       acquire_slot_lock: {
         Args: {
           p_end: string
@@ -771,6 +799,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      invite_business_manager: {
+        Args: { p_business_id: string; p_email: string }
+        Returns: string
       }
       release_slot_lock: {
         Args: { p_holder: string; p_staff: string; p_start: string }
