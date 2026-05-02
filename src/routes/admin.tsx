@@ -213,7 +213,7 @@ function ServicesTab({ businessId }: { businessId: string }) {
 function StaffTab({ businessId }: { businessId: string }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [form, setForm] = useState({ name: "" });
 
   async function load() {
     const [st, sv] = await Promise.all([
@@ -228,10 +228,10 @@ function StaffTab({ businessId }: { businessId: string }) {
   async function add() {
     if (!form.name) return toast.error("Name required");
     const { error } = await supabase.from("staff").insert({
-      business_id: businessId, name: form.name, email: form.email || null,
+      business_id: businessId, name: form.name,
     });
     if (error) return toast.error(error.message);
-    setForm({ name: "", email: "" });
+    setForm({ name: "" });
     load();
   }
   async function remove(id: string) {
@@ -264,7 +264,6 @@ function StaffTab({ businessId }: { businessId: string }) {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-base">{s.name}</CardTitle>
-                    <CardDescription>{s.email ?? "no email"}</CardDescription>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => remove(s.id)}><Trash2 /></Button>
                 </div>
@@ -318,7 +317,6 @@ function StaffTab({ businessId }: { businessId: string }) {
         <CardHeader><CardTitle className="text-base">Add staff</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <Button onClick={add} className="w-full"><Plus /> Add staff</Button>
         </CardContent>
       </Card>
