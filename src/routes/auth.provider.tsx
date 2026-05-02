@@ -35,7 +35,11 @@ function ProviderAuth() {
     await ensureRole(uid);
     await refresh();
     const { data: bo } = await supabase.from("business_owners").select("business_id").eq("user_id", uid).maybeSingle();
-    navigate({ to: bo ? "/admin" : "/auth/provider/business" });
+    if (bo?.business_id) {
+      navigate({ to: "/admins/$adminId", params: { adminId: bo.business_id } });
+    } else {
+      navigate({ to: "/auth/provider/business" });
+    }
   }
 
   async function submit(e: React.FormEvent) {
