@@ -1002,6 +1002,7 @@ function StoreTab({ businessId }: { businessId: string }) {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
