@@ -236,24 +236,24 @@ function PayPage() {
                 <div>
                   <Label htmlFor="cn">Name on card</Label>
                   <Input id="cn" autoComplete="cc-name" value={card.name}
-                    onChange={(e) => setCard({ ...card, name: e.target.value })} required />
+                    onChange={(e) => setCard({ ...card, name: e.target.value })} />
                 </div>
                 <div>
                   <Label htmlFor="ccnum">Card number</Label>
                   <Input id="ccnum" inputMode="numeric" autoComplete="cc-number" placeholder="4242 4242 4242 4242"
                     value={card.number}
-                    onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value) })} required />
+                    onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value) })} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="exp">Expiry</Label>
                     <Input id="exp" placeholder="MM/YY" value={card.expiry}
-                      onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })} required />
+                      onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })} />
                   </div>
                   <div>
                     <Label htmlFor="cvc">CVC</Label>
                     <Input id="cvc" inputMode="numeric" placeholder="123" maxLength={4} value={card.cvc}
-                      onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, "") })} required />
+                      onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, "") })} />
                   </div>
                 </div>
 
