@@ -226,6 +226,75 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          amount: number
+          appointment_at: string
+          booking_id: string
+          business_id: string
+          created_at: string
+          currency: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string | null
+          expires_at: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          service_id: string | null
+          service_name: string
+          staff_id: string | null
+          staff_name: string | null
+          status: string
+          tax: number
+          total: number
+        }
+        Insert: {
+          amount?: number
+          appointment_at: string
+          booking_id: string
+          business_id: string
+          created_at?: string
+          currency?: string
+          customer_email: string
+          customer_name: string
+          customer_phone?: string | null
+          expires_at?: string
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          service_id?: string | null
+          service_name: string
+          staff_id?: string | null
+          staff_name?: string | null
+          status?: string
+          tax?: number
+          total?: number
+        }
+        Update: {
+          amount?: number
+          appointment_at?: string
+          booking_id?: string
+          business_id?: string
+          created_at?: string
+          currency?: string
+          customer_email?: string
+          customer_name?: string
+          customer_phone?: string | null
+          expires_at?: string
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          service_id?: string | null
+          service_name?: string
+          staff_id?: string | null
+          staff_name?: string | null
+          status?: string
+          tax?: number
+          total?: number
+        }
+        Relationships: []
+      }
       service_categories: {
         Row: {
           business_id: string
@@ -361,21 +430,18 @@ export type Database = {
         Row: {
           business_id: string
           created_at: string
-          email: string | null
           id: string
           name: string
         }
         Insert: {
           business_id: string
           created_at?: string
-          email?: string | null
           id?: string
           name: string
         }
         Update: {
           business_id?: string
           created_at?: string
-          email?: string | null
           id?: string
           name?: string
         }
@@ -502,6 +568,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_my_role: {
+        Args: { p_role: Database["public"]["Enums"]["app_role"] }
+        Returns: undefined
+      }
+      cleanup_expired_invoices: { Args: never; Returns: number }
       confirm_booking: {
         Args: {
           p_email: string
@@ -528,6 +599,54 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_business_with_owner: {
+        Args: {
+          p_address_line1?: string
+          p_address_line2?: string
+          p_banner_url?: string
+          p_category?: string
+          p_city?: string
+          p_country?: string
+          p_description?: string
+          p_logo_url?: string
+          p_name: string
+          p_phone?: string
+          p_postal_code?: string
+          p_region?: string
+        }
+        Returns: string
+      }
+      create_invoice_for_booking: {
+        Args: { p_booking_id: string }
+        Returns: {
+          amount: number
+          appointment_at: string
+          booking_id: string
+          business_id: string
+          created_at: string
+          currency: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string | null
+          expires_at: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          service_id: string | null
+          service_name: string
+          staff_id: string | null
+          staff_name: string | null
+          status: string
+          tax: number
+          total: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
           isOneToOne: true
           isSetofReturn: false
         }
