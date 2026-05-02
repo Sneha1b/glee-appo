@@ -70,22 +70,34 @@ function downloadInvoicePdf(r: any) {
 
 function Admin() {
   const { adminId } = useParams({ from: "/admins/$adminId" });
-  const { user, loading, businessId, role, signOut } = useAuth();
+  const { user, loading, role, signOut } = useAuth();
   const navigate = useNavigate();
+  const [ownership, setOwnership] = useState<"checking" | "owner" | "denied">("checking");
 
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
-    if (!businessId) { navigate({ to: "/auth/provider/business" }); return; }
-    // Force the URL to match the signed-in provider's own business
-    if (businessId !== adminId) {
-      navigate({ to: "/admins/$adminId", params: { adminId: businessId }, replace: true });
-    }
-  }, [loading, user, businessId, role, adminId]);
+    let cancelled = false;
+    setOwnership("checking");
+    (async () => {
+      const { data, error } = await supabase
+        .from("business_owners")
+        .select("business_id")
+        .eq("user_id", user.id)
+        .eq("business_id", adminId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
+      setOwnership("owner");
+    })();
+    return () => { cancelled = true; };
+  }, [loading, user?.id, role, adminId]);
 
-  if (loading || !user || !businessId || businessId !== adminId)
+  if (loading || !user || ownership !== "owner")
     return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+
+  const businessId = adminId;
 
   return (
     <div className="min-h-screen bg-background">
