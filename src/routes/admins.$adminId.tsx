@@ -1,0 +1,586 @@
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, ArrowLeft, Plus, LogOut, Save } from "lucide-react";
+import { fmtDateTime } from "@/lib/format";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/admins/$adminId")({
+  component: Admin,
+  head: () => ({ meta: [{ title: "Provider — Schedora" }] }),
+});
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function Admin() {
+  const { adminId } = useParams({ from: "/admins/$adminId" });
+  const { user, loading, businessId, role, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (!businessId) { navigate({ to: "/auth/provider/business" }); return; }
+    // Force the URL to match the signed-in provider's own business
+    if (businessId !== adminId) {
+      navigate({ to: "/admins/$adminId", params: { adminId: businessId }, replace: true });
+    }
+  }, [loading, user, businessId, role, adminId]);
+
+  if (loading || !user || !businessId || businessId !== adminId)
+    return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/"><ArrowLeft /> Back to site</Link>
+          </Button>
+          <h1 className="font-semibold">Provider dashboard</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/auth/provider/business">Business profile</Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate({ to: "/" }); }}>
+              <LogOut /> Sign out
+            </Button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <Tabs defaultValue="bookings">
+          <TabsList>
+            <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="services">Services</TabsTrigger>
+            <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="blocks">Time blocks</TabsTrigger>
+          </TabsList>
+          <TabsContent value="bookings"><BookingsTab /></TabsContent>
+          <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
+          <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
+          <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
+          <TabsContent value="blocks"><BlocksTab /></TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}
+
+function BookingsTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  async function load() {
+    const { data } = await supabase
+      .from("bookings")
+      .select("*, service:service_id(name), staff:staff_id(name)")
+      .gte("start_at", new Date(Date.now() - 7 * 86400000).toISOString())
+      .order("start_at");
+    setRows(data ?? []);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function cancel(id: string) {
+    await supabase.from("bookings").delete().eq("id", id);
+    toast.success("Booking cancelled");
+    load();
+  }
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">Upcoming bookings</CardTitle>
+        <CardDescription>Showing the past week and forward.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No bookings yet.</p>
+        ) : (
+          <ul className="divide-y">
+            {rows.map((b) => (
+              <li key={b.id} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="font-medium">{b.customer_name} · {b.service?.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {fmtDateTime(b.start_at)} · {b.staff?.name} · {b.customer_email}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => cancel(b.id)}>
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ServicesTab({ businessId }: { businessId: string }) {
+  const [services, setServices] = useState<any[]>([]);
+  const [cats, setCats] = useState<any[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const empty = { name: "", duration_min: 30, price: 0, description: "", category_id: "", available_from: "" };
+  const [form, setForm] = useState<any>(empty);
+
+  async function load() {
+    const [s, c] = await Promise.all([
+      supabase.from("services").select("*, category:category_id(name)").eq("business_id", businessId).order("name"),
+      supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order"),
+    ]);
+    setServices(s.data ?? []);
+    setCats(c.data ?? []);
+  }
+  useEffect(() => { load(); }, [businessId]);
+
+  function startEdit(s: any) {
+    setEditingId(s.id);
+    setForm({
+      name: s.name ?? "",
+      duration_min: s.duration_min ?? 30,
+      price: Number(s.price ?? 0),
+      description: s.description ?? "",
+      category_id: s.category_id ?? "",
+      available_from: s.available_from ? new Date(s.available_from).toISOString().slice(0, 10) : "",
+    });
+  }
+  function cancelEdit() { setEditingId(null); setForm(empty); }
+
+  async function save() {
+    if (!form.name || !form.duration_min) return toast.error("Name and duration required");
+    const payload: any = {
+      business_id: businessId,
+      name: form.name,
+      duration_min: form.duration_min,
+      price: form.price,
+      description: form.description || null,
+      category_id: form.category_id || null,
+      available_from: form.available_from ? new Date(form.available_from).toISOString() : null,
+    };
+    const { error } = editingId
+      ? await supabase.from("services").update(payload).eq("id", editingId)
+      : await supabase.from("services").insert(payload);
+    if (error) return toast.error(error.message);
+    toast.success(editingId ? "Service updated" : "Service added");
+    cancelEdit();
+    load();
+  }
+  async function archive(id: string) {
+    await supabase.from("services").update({ active: false }).eq("id", id);
+    load();
+  }
+  async function activate(id: string) {
+    await supabase.from("services").update({ active: true }).eq("id", id);
+    load();
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_360px]">
+      <Card>
+        <CardHeader><CardTitle className="text-base">Services</CardTitle></CardHeader>
+        <CardContent>
+          {services.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No services yet — add one on the right.</p>
+          ) : (
+            <ul className="divide-y">
+              {services.map((s) => {
+                const upcoming = s.available_from && new Date(s.available_from) > new Date();
+                return (
+                  <li key={s.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="font-medium">
+                        {s.name}{" "}
+                        {!s.active && <Badge variant="secondary">archived</Badge>}
+                        {upcoming && <Badge className="ml-1">launches {new Date(s.available_from).toLocaleDateString()}</Badge>}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {s.category?.name ?? "Uncategorized"} · {s.duration_min} min · ${Number(s.price).toFixed(0)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(s)}>Edit</Button>
+                      {s.active ? (
+                        <Button variant="ghost" size="sm" onClick={() => archive(s.id)}>Archive</Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" onClick={() => activate(s.id)}>Activate</Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{editingId ? "Edit service" : "Add service"}</CardTitle>
+          <CardDescription>Use the launch date for services that aren't bookable yet.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Duration (min)</Label><Input type="number" value={form.duration_min} onChange={(e) => setForm({ ...form, duration_min: Number(e.target.value) })} /></div>
+            <div><Label>Price ($)</Label><Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
+          </div>
+          <div>
+            <Label>Category</Label>
+            <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
+              <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
+              <SelectContent>{cats.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Available from <span className="text-muted-foreground">(optional)</span></Label>
+            <Input
+              type="date"
+              value={form.available_from}
+              onChange={(e) => setForm({ ...form, available_from: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Hide from booking until this date.</p>
+          </div>
+          <div><Label>Description</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+          <div className="flex gap-2">
+            <Button onClick={save} className="flex-1">
+              {editingId ? <><Save /> Save changes</> : <><Plus /> Add service</>}
+            </Button>
+            {editingId && <Button variant="outline" onClick={cancelEdit}>Cancel</Button>}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function StaffTab({ businessId }: { businessId: string }) {
+  const [staff, setStaff] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
+
+  async function load() {
+    const [st, sv] = await Promise.all([
+      supabase.from("staff").select("*, services:staff_services(service_id), avail:availabilities(*)").eq("business_id", businessId).order("name"),
+      supabase.from("services").select("id,name").eq("business_id", businessId).eq("active", true),
+    ]);
+    setStaff(st.data ?? []);
+    setServices(sv.data ?? []);
+    if (!selectedId && st.data && st.data.length) setSelectedId(st.data[0].id);
+  }
+  useEffect(() => { load(); }, [businessId]);
+
+  const selected = useMemo(() => staff.find((s) => s.id === selectedId), [staff, selectedId]);
+
+  async function addStaff() {
+    if (!newName.trim()) return toast.error("Name required");
+    const { data, error } = await supabase.from("staff").insert({ business_id: businessId, name: newName.trim() }).select().single();
+    if (error) return toast.error(error.message);
+    setNewName("");
+    toast.success("Staff added");
+    if (data) setSelectedId(data.id);
+    load();
+  }
+  async function removeStaff(id: string) {
+    await supabase.from("staff").delete().eq("id", id);
+    setSelectedId("");
+    load();
+  }
+  async function toggleService(staffId: string, serviceId: string, on: boolean) {
+    if (on) await supabase.from("staff_services").insert({ staff_id: staffId, service_id: serviceId });
+    else await supabase.from("staff_services").delete().eq("staff_id", staffId).eq("service_id", serviceId);
+    load();
+  }
+  async function setHours(staffId: string, weekday: number, startH: number, endH: number) {
+    if (Number.isNaN(startH) || Number.isNaN(endH) || startH < 0 || endH < 0 || startH > 24 || endH > 24) {
+      setHourErrors((m) => ({ ...m, [weekday]: "Hours must be between 0 and 24." }));
+      return;
+    }
+    if (endH !== 0 && endH <= startH) {
+      setHourErrors((m) => ({ ...m, [weekday]: "End hour must be greater than start hour." }));
+      return;
+    }
+    setHourErrors((m) => { const c = { ...m }; delete c[weekday]; return c; });
+    await supabase.from("availabilities").delete().eq("staff_id", staffId).eq("weekday", weekday);
+    if (endH > startH) {
+      await supabase.from("availabilities").insert({
+        staff_id: staffId, weekday, start_minute: startH * 60, end_minute: endH * 60,
+      });
+    }
+    load();
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_320px]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Edit staff member</CardTitle>
+          <CardDescription>Pick a team member to manage their services and weekly hours.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {staff.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No staff yet — add one on the right.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <Select value={selectedId} onValueChange={setSelectedId}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select a staff member" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {selected && (
+                  <Button variant="ghost" size="icon" onClick={() => removeStaff(selected.id)} title="Remove staff">
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+              {selected && (
+                <>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Services performed</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {services.map((svc) => {
+                        const on = new Set(selected.services.map((x: any) => x.service_id)).has(svc.id);
+                        return (
+                          <Button
+                            key={svc.id}
+                            size="sm"
+                            variant={on ? "default" : "outline"}
+                            onClick={() => toggleService(selected.id, svc.id, !on)}
+                          >
+                            {svc.name}
+                          </Button>
+                        );
+                      })}
+                      {services.length === 0 && <p className="text-sm text-muted-foreground">Add services first.</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Weekly hours</Label>
+                    <div className="mt-2 space-y-1.5">
+                      {WEEKDAYS.map((wd, i) => {
+                        const a = selected.avail.find((x: any) => x.weekday === i);
+                        const startH = a ? Math.floor(a.start_minute / 60) : 0;
+                        const endH = a ? Math.floor(a.end_minute / 60) : 0;
+                        return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="w-10 text-muted-foreground">{wd}</span>
+                              <Input
+                                type="number" min={0} max={24} className="h-8 w-20"
+                                defaultValue={startH}
+                                key={`s-${selected.id}-${i}-${a?.id ?? "x"}`}
+                                onBlur={(e) => setHours(selected.id, i, Number(e.target.value), endH || Number(e.target.value) + 8)}
+                              />
+                              <span className="text-muted-foreground">to</span>
+                              <Input
+                                type="number" min={0} max={24} className="h-8 w-20"
+                                defaultValue={endH}
+                                key={`e-${selected.id}-${i}-${a?.id ?? "x"}`}
+                                onBlur={(e) => setHours(selected.id, i, startH, Number(e.target.value))}
+                              />
+                            </div>
+                            {hourErrors[i] && (
+                              <p className="ml-12 text-xs text-destructive">{hourErrors[i]}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Add staff</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div><Label>Name</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} /></div>
+          <Button onClick={addStaff} className="w-full"><Plus /> Add staff</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function BlocksTab() {
+  const [staff, setStaff] = useState<any[]>([]);
+  const [blocks, setBlocks] = useState<any[]>([]);
+  const [form, setForm] = useState({ staff_id: "", start: "", end: "", reason: "" });
+
+  async function load() {
+    const [s, b] = await Promise.all([
+      supabase.from("staff").select("id,name").order("name"),
+      supabase.from("time_blocks").select("*, staff:staff_id(name)").gte("end_at", new Date().toISOString()).order("start_at"),
+    ]);
+    setStaff(s.data ?? []);
+    setBlocks(b.data ?? []);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function add() {
+    if (!form.staff_id || !form.start || !form.end) return toast.error("All fields required");
+    const { error } = await supabase.from("time_blocks").insert({
+      staff_id: form.staff_id,
+      start_at: new Date(form.start).toISOString(),
+      end_at: new Date(form.end).toISOString(),
+      reason: form.reason || null,
+    });
+    if (error) return toast.error(error.message);
+    setForm({ staff_id: "", start: "", end: "", reason: "" });
+    toast.success("Block added");
+    load();
+  }
+  async function remove(id: string) {
+    await supabase.from("time_blocks").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_320px]">
+      <Card>
+        <CardHeader><CardTitle className="text-base">Upcoming time blocks</CardTitle></CardHeader>
+        <CardContent>
+          {blocks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No blocks scheduled.</p>
+          ) : (
+            <ul className="divide-y">
+              {blocks.map((b) => (
+                <li key={b.id} className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-medium">{b.staff?.name} — {b.reason ?? "blocked"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {fmtDateTime(b.start_at)} → {fmtDateTime(b.end_at)}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => remove(b.id)}><Trash2 /></Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Add block</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>Staff</Label>
+            <Select value={form.staff_id} onValueChange={(v) => setForm({ ...form, staff_id: v })}>
+              <SelectTrigger><SelectValue placeholder="Pick staff" /></SelectTrigger>
+              <SelectContent>{staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Start</Label><Input type="datetime-local" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></div>
+          <div><Label>End</Label><Input type="datetime-local" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
+          <div><Label>Reason</Label><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
+          <Button onClick={add} className="w-full"><Plus /> Add block</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function InvoicesTab({ businessId }: { businessId: string }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [filters, setFilters] = useState({
+    from: "", to: "", staff_id: "all", service_id: "all",
+  });
+
+  async function load() {
+    let q = supabase.from("invoices").select("*").eq("business_id", businessId).order("issued_at", { ascending: false });
+    if (filters.from) q = q.gte("issued_at", new Date(filters.from).toISOString());
+    if (filters.to) q = q.lte("issued_at", new Date(filters.to + "T23:59:59").toISOString());
+    if (filters.staff_id !== "all") q = q.eq("staff_id", filters.staff_id);
+    if (filters.service_id !== "all") q = q.eq("service_id", filters.service_id);
+    const { data } = await q;
+    setRows(data ?? []);
+  }
+  useEffect(() => {
+    Promise.all([
+      supabase.from("staff").select("id,name").eq("business_id", businessId),
+      supabase.from("services").select("id,name").eq("business_id", businessId),
+    ]).then(([s, sv]) => { setStaff(s.data ?? []); setServices(sv.data ?? []); });
+  }, [businessId]);
+  useEffect(() => { load(); }, [businessId, filters]);
+
+  const total = rows.reduce((sum, r) => sum + Number(r.total ?? 0), 0);
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">Invoices</CardTitle>
+        <CardDescription>Auto-generated on each booking. Retained for 18 months.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div><Label className="text-xs">From</Label><Input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} /></div>
+          <div><Label className="text-xs">To</Label><Input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} /></div>
+          <div>
+            <Label className="text-xs">Staff</Label>
+            <Select value={filters.staff_id} onValueChange={(v) => setFilters({ ...filters, staff_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All staff</SelectItem>
+                {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Service</Label>
+            <Select value={filters.service_id} onValueChange={(v) => setFilters({ ...filters, service_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All services</SelectItem>
+                {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No invoices match these filters.</p>
+        ) : (
+          <>
+            <ul className="divide-y">
+              {rows.map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-medium">{r.invoice_number} · {r.service_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {fmtDateTime(r.issued_at)} · {r.customer_name} · {r.staff_name ?? "—"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{r.currency} {Number(r.total).toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">{r.status}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end border-t pt-3 text-sm">
+              <span className="text-muted-foreground">Total:&nbsp;</span>
+              <span className="font-semibold">${total.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
