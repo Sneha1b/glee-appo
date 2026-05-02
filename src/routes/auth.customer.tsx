@@ -32,7 +32,7 @@ function CustomerAuth() {
     if (authLoading) return;
     if (user) {
       (async () => {
-        await supabase.rpc("assign_my_role", { p_role: "customer" }).catch(() => {});
+        try { await supabase.rpc("assign_my_role", { p_role: "customer" }); } catch {}
         await routeAfterAuth(user.id);
       })();
     }
