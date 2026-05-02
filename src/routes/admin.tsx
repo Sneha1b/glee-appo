@@ -59,11 +59,13 @@ function Admin() {
         <Tabs defaultValue="bookings">
           <TabsList>
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="staff">Staff</TabsTrigger>
             <TabsTrigger value="blocks">Time blocks</TabsTrigger>
           </TabsList>
           <TabsContent value="bookings"><BookingsTab /></TabsContent>
+          <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
           <TabsContent value="blocks"><BlocksTab /></TabsContent>
