@@ -9,9 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ProviderRouteImport } from './routes/provider'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProviderIndexRouteImport } from './routes/provider.index'
 import { Route as BusinessesIndexRouteImport } from './routes/businesses.index'
 import { Route as ProviderNewRouteImport } from './routes/provider.new'
 import { Route as PayBookingIdRouteImport } from './routes/pay.$bookingId'
@@ -26,11 +26,6 @@ import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.
 import { Route as ApiBookingBookingIdRouteImport } from './routes/api/booking.$bookingId'
 import { Route as AdminsAdminIdBookingsBookingIdRouteImport } from './routes/admins.$adminId.bookings.$bookingId'
 
-const ProviderRoute = ProviderRouteImport.update({
-  id: '/provider',
-  path: '/provider',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -41,15 +36,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProviderIndexRoute = ProviderIndexRouteImport.update({
+  id: '/provider/',
+  path: '/provider/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessesIndexRoute = BusinessesIndexRouteImport.update({
   id: '/businesses/',
   path: '/businesses/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProviderNewRoute = ProviderNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => ProviderRoute,
+  id: '/provider/new',
+  path: '/provider/new',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PayBookingIdRoute = PayBookingIdRouteImport.update({
   id: '/pay/$bookingId',
@@ -111,7 +111,6 @@ const AdminsAdminIdBookingsBookingIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
-  '/provider': typeof ProviderRouteWithChildren
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -120,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses/': typeof BusinessesIndexRoute
+  '/provider/': typeof ProviderIndexRoute
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
@@ -129,7 +129,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
-  '/provider': typeof ProviderRouteWithChildren
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -138,6 +137,7 @@ export interface FileRoutesByTo {
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses': typeof BusinessesIndexRoute
+  '/provider': typeof ProviderIndexRoute
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
@@ -148,7 +148,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
-  '/provider': typeof ProviderRouteWithChildren
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -157,6 +156,7 @@ export interface FileRoutesById {
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses/': typeof BusinessesIndexRoute
+  '/provider/': typeof ProviderIndexRoute
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
@@ -168,7 +168,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/profile'
-    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -177,6 +176,7 @@ export interface FileRouteTypes {
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses/'
+    | '/provider/'
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
@@ -186,7 +186,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/profile'
-    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -195,6 +194,7 @@ export interface FileRouteTypes {
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses'
+    | '/provider'
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
@@ -204,7 +204,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/profile'
-    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -213,6 +212,7 @@ export interface FileRouteTypes {
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses/'
+    | '/provider/'
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
@@ -223,26 +223,20 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProfileRoute: typeof ProfileRoute
-  ProviderRoute: typeof ProviderRouteWithChildren
   AdminsAdminIdRoute: typeof AdminsAdminIdRouteWithChildren
   AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
   BookServiceIdRoute: typeof BookServiceIdRoute
   BusinessesBusinessIdRoute: typeof BusinessesBusinessIdRoute
   PayBookingIdRoute: typeof PayBookingIdRoute
+  ProviderNewRoute: typeof ProviderNewRoute
   BusinessesIndexRoute: typeof BusinessesIndexRoute
+  ProviderIndexRoute: typeof ProviderIndexRoute
   ApiBookingBookingIdRoute: typeof ApiBookingBookingIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/provider': {
-      id: '/provider'
-      path: '/provider'
-      fullPath: '/provider'
-      preLoaderRoute: typeof ProviderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -257,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/provider/': {
+      id: '/provider/'
+      path: '/provider'
+      fullPath: '/provider/'
+      preLoaderRoute: typeof ProviderIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/businesses/': {
       id: '/businesses/'
       path: '/businesses'
@@ -266,10 +267,10 @@ declare module '@tanstack/react-router' {
     }
     '/provider/new': {
       id: '/provider/new'
-      path: '/new'
+      path: '/provider/new'
       fullPath: '/provider/new'
       preLoaderRoute: typeof ProviderNewRouteImport
-      parentRoute: typeof ProviderRoute
+      parentRoute: typeof rootRouteImport
     }
     '/pay/$bookingId': {
       id: '/pay/$bookingId'
@@ -351,18 +352,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ProviderRouteChildren {
-  ProviderNewRoute: typeof ProviderNewRoute
-}
-
-const ProviderRouteChildren: ProviderRouteChildren = {
-  ProviderNewRoute: ProviderNewRoute,
-}
-
-const ProviderRouteWithChildren = ProviderRoute._addFileChildren(
-  ProviderRouteChildren,
-)
-
 interface AdminsAdminIdRouteChildren {
   AdminsAdminIdBookingsBookingIdRoute: typeof AdminsAdminIdBookingsBookingIdRoute
 }
@@ -404,16 +393,26 @@ const AuthProviderRouteWithChildren = AuthProviderRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProfileRoute: ProfileRoute,
-  ProviderRoute: ProviderRouteWithChildren,
   AdminsAdminIdRoute: AdminsAdminIdRouteWithChildren,
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthProviderRoute: AuthProviderRouteWithChildren,
   BookServiceIdRoute: BookServiceIdRoute,
   BusinessesBusinessIdRoute: BusinessesBusinessIdRoute,
   PayBookingIdRoute: PayBookingIdRoute,
+  ProviderNewRoute: ProviderNewRoute,
   BusinessesIndexRoute: BusinessesIndexRoute,
+  ProviderIndexRoute: ProviderIndexRoute,
   ApiBookingBookingIdRoute: ApiBookingBookingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
