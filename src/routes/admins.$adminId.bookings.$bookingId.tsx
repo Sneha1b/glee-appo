@@ -114,7 +114,7 @@ function BookingDetail() {
     } finally { setBusy(false); }
   }
 
-  if (loading || !booking) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+  if (ownership !== "owner" || loading || !booking) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
 
   const cancelled = booking.status === "cancelled";
 
