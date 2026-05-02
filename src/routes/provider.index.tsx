@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Plus, Building2, MapPin, LogOut, User } from "lucide-react";
 
-export const Route = createFileRoute("/provider")({
+export const Route = createFileRoute("/provider/")({
   component: ProviderLanding,
   head: () => ({ meta: [{ title: "Your businesses — Schedora" }] }),
 });
