@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ArrowLeft, Plus, LogOut, Save, ChevronRight, Download } from "lucide-react";
+import { Trash2, ArrowLeft, Plus, LogOut, Save, ChevronRight, Download, Store, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { fmtDateTime, fmtTime } from "@/lib/format";
 import { jsPDF } from "jspdf";
@@ -110,12 +110,14 @@ function Admin() {
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="store">Store</TabsTrigger>
             <TabsTrigger value="blocks">Time blocks</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
           </TabsList>
           <TabsContent value="bookings"><BookingsTab businessId={businessId} adminId={adminId} /></TabsContent>
           <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
+          <TabsContent value="store"><StoreTab businessId={businessId} /></TabsContent>
           <TabsContent value="blocks"><BlocksTab /></TabsContent>
           <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
         </Tabs>
@@ -647,6 +649,182 @@ function BlocksTab() {
           <div><Label>End</Label><Input type="datetime-local" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
           <div><Label>Reason</Label><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           <Button onClick={add} className="w-full"><Plus /> Add block</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function StoreTab({ businessId }: { businessId: string }) {
+  const [hours, setHours] = useState<any[]>([]);
+  const [closures, setClosures] = useState<any[]>([]);
+  const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
+  const [newClosure, setNewClosure] = useState({ from_date: "", to_date: "", reason: "" });
+
+  async function load() {
+    const [h, c] = await Promise.all([
+      supabase.from("business_hours").select("*").eq("business_id", businessId).order("weekday"),
+      supabase.from("business_closures").select("*").eq("business_id", businessId).gte("to_date", new Date().toISOString().slice(0, 10)).order("from_date"),
+    ]);
+    setHours(h.data ?? []);
+    setClosures(c.data ?? []);
+  }
+  useEffect(() => { load(); }, [businessId]);
+
+  async function runCleanup() {
+    const { data, error } = await supabase.rpc("cancel_out_of_hours_bookings", { p_business_id: businessId });
+    if (error) { toast.error(error.message); return; }
+    const n = (data as any[] | null)?.length ?? 0;
+    if (n > 0) {
+      toast.success(`Cancelled ${n} booking${n === 1 ? "" : "s"} that no longer fit your schedule.`);
+      // Notify customers
+      for (const row of (data as any[])) {
+        supabase.functions.invoke("booking-confirmation", { body: { bookingId: row.cancelled_id, action: "cancel" } })
+          .catch((e) => console.warn(e));
+      }
+    }
+  }
+
+  async function setDayHours(weekday: number, openH: number, closeH: number) {
+    if (Number.isNaN(openH) || Number.isNaN(closeH) || openH < 0 || closeH < 0 || openH > 24 || closeH > 24) {
+      setHourErrors((m) => ({ ...m, [weekday]: "Hours must be between 0 and 24." }));
+      return;
+    }
+    if (closeH !== 0 && closeH <= openH) {
+      setHourErrors((m) => ({ ...m, [weekday]: "Close hour must be greater than open hour." }));
+      return;
+    }
+    setHourErrors((m) => { const c = { ...m }; delete c[weekday]; return c; });
+    await supabase.from("business_hours").delete().eq("business_id", businessId).eq("weekday", weekday);
+    if (closeH > openH) {
+      await supabase.from("business_hours").insert({
+        business_id: businessId, weekday, open_minute: openH * 60, close_minute: closeH * 60,
+      });
+    }
+    await load();
+    await runCleanup();
+  }
+
+  async function addClosure() {
+    if (!newClosure.from_date) return toast.error("Pick a start date");
+    const to = newClosure.to_date || newClosure.from_date;
+    const { error } = await supabase.from("business_closures").insert({
+      business_id: businessId,
+      from_date: newClosure.from_date,
+      to_date: to,
+      reason: newClosure.reason || null,
+    });
+    if (error) return toast.error(error.message);
+    setNewClosure({ from_date: "", to_date: "", reason: "" });
+    toast.success("Closure added");
+    await load();
+    await runCleanup();
+  }
+
+  async function removeClosure(id: string) {
+    await supabase.from("business_closures").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_360px]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Store className="size-4" /> Store hours
+          </CardTitle>
+          <CardDescription>
+            Set when the business is open. Set both to 0 for a closed day.
+            Bookings that fall outside the new hours are cancelled automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1.5">
+            {WEEKDAYS.map((wd, i) => {
+              const h = hours.find((x) => x.weekday === i);
+              const openH = h ? Math.floor(h.open_minute / 60) : 0;
+              const closeH = h ? Math.floor(h.close_minute / 60) : 0;
+              const isClosed = !h || h.close_minute <= h.open_minute;
+              return (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="w-12 text-muted-foreground">{wd}</span>
+                    <Input
+                      type="number" min={0} max={24} className="h-8 w-20"
+                      defaultValue={openH}
+                      key={`o-${i}-${h?.id ?? "x"}`}
+                      onBlur={(e) => setDayHours(i, Number(e.target.value), closeH || Number(e.target.value) + 8)}
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="number" min={0} max={24} className="h-8 w-20"
+                      defaultValue={closeH}
+                      key={`c-${i}-${h?.id ?? "x"}`}
+                      onBlur={(e) => setDayHours(i, openH, Number(e.target.value))}
+                    />
+                    {isClosed && <Badge variant="secondary" className="ml-1 text-xs">closed</Badge>}
+                  </div>
+                  {hourErrors[i] && (
+                    <p className="ml-14 text-xs text-destructive">{hourErrors[i]}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-4 flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            Per-staff hours under <b>Staff</b> still apply within these store hours.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Closures & off days</CardTitle>
+          <CardDescription>Block out a single day or a date range (holidays, training, etc.).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {closures.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No upcoming closures.</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {closures.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {new Date(c.from_date + "T00:00:00").toLocaleDateString()}
+                      {c.from_date !== c.to_date && (
+                        <> → {new Date(c.to_date + "T00:00:00").toLocaleDateString()}</>
+                      )}
+                    </p>
+                    {c.reason && <p className="truncate text-xs text-muted-foreground">{c.reason}</p>}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => removeClosure(c.id)}><Trash2 /></Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add closure</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">From</Label>
+                <Input type="date" value={newClosure.from_date}
+                  onChange={(e) => setNewClosure({ ...newClosure, from_date: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">To <span className="text-muted-foreground">(optional)</span></Label>
+                <Input type="date" value={newClosure.to_date}
+                  onChange={(e) => setNewClosure({ ...newClosure, to_date: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Reason</Label>
+              <Input value={newClosure.reason} placeholder="Holiday, training…"
+                onChange={(e) => setNewClosure({ ...newClosure, reason: e.target.value })} />
+            </div>
+            <Button onClick={addClosure} className="w-full"><Plus /> Add closure</Button>
+          </div>
         </CardContent>
       </Card>
     </div>

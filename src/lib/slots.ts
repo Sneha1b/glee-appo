@@ -31,14 +31,34 @@ export async function computeSlots(opts: {
   // Eligible staff = those who perform this service
   const { data: ss, error: e1 } = await supabase
     .from("staff_services")
-    .select("staff_id, staff:staff_id(id, name)")
+    .select("staff_id, staff:staff_id(id, name, business_id)")
     .eq("service_id", serviceId);
   if (e1) throw e1;
   let staffList = (ss ?? [])
-    .map((r: any) => ({ id: r.staff.id, name: r.staff.name }))
+    .map((r: any) => ({ id: r.staff.id, name: r.staff.name, business_id: r.staff.business_id }))
     .filter((s) => (staffIdFilter ? s.id === staffIdFilter : true));
   if (staffList.length === 0) return [];
   const staffIds = staffList.map((s) => s.id);
+  const businessId = staffList[0].business_id;
+
+  // Check store-level closure first — if today is closed, no slots.
+  const dateStr = `${dayStart.getUTCFullYear()}-${String(dayStart.getUTCMonth() + 1).padStart(2, "0")}-${String(dayStart.getUTCDate()).padStart(2, "0")}`;
+  const { data: closures } = await supabase
+    .from("business_closures")
+    .select("from_date,to_date")
+    .eq("business_id", businessId)
+    .lte("from_date", dateStr)
+    .gte("to_date", dateStr);
+  if ((closures?.length ?? 0) > 0) return [];
+
+  // Store hours for this weekday (if configured) constrain everything
+  const { data: storeHours } = await supabase
+    .from("business_hours")
+    .select("open_minute,close_minute")
+    .eq("business_id", businessId)
+    .eq("weekday", weekday)
+    .maybeSingle();
+  if (storeHours && storeHours.close_minute <= storeHours.open_minute) return [];
 
   const [avRes, bkRes, blRes, lkRes] = await Promise.all([
     supabase.from("availabilities").select("*").in("staff_id", staffIds).eq("weekday", weekday),
@@ -80,8 +100,12 @@ export async function computeSlots(opts: {
     const busy = busyByStaff[staff.id] ?? [];
 
     for (const w of windows) {
-      const winStart = addMinutes(dayStart, w.start_minute);
-      const winEnd = addMinutes(dayStart, w.end_minute);
+      // Intersect staff window with store hours (if configured)
+      const effStart = storeHours ? Math.max(w.start_minute, storeHours.open_minute) : w.start_minute;
+      const effEnd = storeHours ? Math.min(w.end_minute, storeHours.close_minute) : w.end_minute;
+      if (effEnd <= effStart) continue;
+      const winStart = addMinutes(dayStart, effStart);
+      const winEnd = addMinutes(dayStart, effEnd);
       for (
         let t = winStart.getTime();
         t + durationMin * 60_000 <= winEnd.getTime();

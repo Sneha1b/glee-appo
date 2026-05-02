@@ -72,7 +72,7 @@ function ProfilePage() {
       if (error) throw error;
       await refresh();
       toast.success("Profile saved");
-      navigate({ to: "/" });
+      navigate({ to: "/businesses" });
     } catch (err: any) {
       toast.error(err.message);
     } finally {

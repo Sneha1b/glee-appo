@@ -110,6 +110,60 @@ export type Database = {
           },
         ]
       }
+      business_closures: {
+        Row: {
+          business_id: string
+          created_at: string
+          from_date: string
+          id: string
+          reason: string | null
+          to_date: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          from_date: string
+          id?: string
+          reason?: string | null
+          to_date: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          from_date?: string
+          id?: string
+          reason?: string | null
+          to_date?: string
+        }
+        Relationships: []
+      }
+      business_hours: {
+        Row: {
+          business_id: string
+          close_minute: number
+          created_at: string
+          id: string
+          open_minute: number
+          weekday: number
+        }
+        Insert: {
+          business_id: string
+          close_minute: number
+          created_at?: string
+          id?: string
+          open_minute: number
+          weekday: number
+        }
+        Update: {
+          business_id?: string
+          close_minute?: number
+          created_at?: string
+          id?: string
+          open_minute?: number
+          weekday?: number
+        }
+        Relationships: []
+      }
       business_owners: {
         Row: {
           business_id: string
@@ -575,6 +629,12 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["app_role"] }
         Returns: undefined
       }
+      cancel_out_of_hours_bookings: {
+        Args: { p_business_id: string }
+        Returns: {
+          cancelled_id: string
+        }[]
+      }
       cleanup_expired_invoices: { Args: never; Returns: number }
       confirm_booking: {
         Args: {
@@ -671,6 +731,7 @@ export type Database = {
           start_at: string
         }[]
       }
+      get_booking_public: { Args: { p_booking_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
