@@ -59,11 +59,13 @@ function Admin() {
         <Tabs defaultValue="bookings">
           <TabsList>
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="staff">Staff</TabsTrigger>
             <TabsTrigger value="blocks">Time blocks</TabsTrigger>
           </TabsList>
           <TabsContent value="bookings"><BookingsTab /></TabsContent>
+          <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
           <TabsContent value="blocks"><BlocksTab /></TabsContent>
@@ -213,7 +215,7 @@ function ServicesTab({ businessId }: { businessId: string }) {
 function StaffTab({ businessId }: { businessId: string }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [form, setForm] = useState({ name: "" });
 
   async function load() {
     const [st, sv] = await Promise.all([
@@ -228,10 +230,10 @@ function StaffTab({ businessId }: { businessId: string }) {
   async function add() {
     if (!form.name) return toast.error("Name required");
     const { error } = await supabase.from("staff").insert({
-      business_id: businessId, name: form.name, email: form.email || null,
+      business_id: businessId, name: form.name,
     });
     if (error) return toast.error(error.message);
-    setForm({ name: "", email: "" });
+    setForm({ name: "" });
     load();
   }
   async function remove(id: string) {
@@ -264,7 +266,6 @@ function StaffTab({ businessId }: { businessId: string }) {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-base">{s.name}</CardTitle>
-                    <CardDescription>{s.email ?? "no email"}</CardDescription>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => remove(s.id)}><Trash2 /></Button>
                 </div>
@@ -318,7 +319,6 @@ function StaffTab({ businessId }: { businessId: string }) {
         <CardHeader><CardTitle className="text-base">Add staff</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <Button onClick={add} className="w-full"><Plus /> Add staff</Button>
         </CardContent>
       </Card>
@@ -400,5 +400,94 @@ function BlocksTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function InvoicesTab({ businessId }: { businessId: string }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [filters, setFilters] = useState({
+    from: "", to: "", staff_id: "all", service_id: "all",
+  });
+
+  async function load() {
+    let q = supabase.from("invoices").select("*").eq("business_id", businessId).order("issued_at", { ascending: false });
+    if (filters.from) q = q.gte("issued_at", new Date(filters.from).toISOString());
+    if (filters.to) q = q.lte("issued_at", new Date(filters.to + "T23:59:59").toISOString());
+    if (filters.staff_id !== "all") q = q.eq("staff_id", filters.staff_id);
+    if (filters.service_id !== "all") q = q.eq("service_id", filters.service_id);
+    const { data } = await q;
+    setRows(data ?? []);
+  }
+  useEffect(() => {
+    Promise.all([
+      supabase.from("staff").select("id,name").eq("business_id", businessId),
+      supabase.from("services").select("id,name").eq("business_id", businessId),
+    ]).then(([s, sv]) => { setStaff(s.data ?? []); setServices(sv.data ?? []); });
+  }, [businessId]);
+  useEffect(() => { load(); }, [businessId, filters]);
+
+  const total = rows.reduce((sum, r) => sum + Number(r.total ?? 0), 0);
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">Invoices</CardTitle>
+        <CardDescription>Auto-generated on each booking. Retained for 18 months.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div><Label className="text-xs">From</Label><Input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} /></div>
+          <div><Label className="text-xs">To</Label><Input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} /></div>
+          <div>
+            <Label className="text-xs">Staff</Label>
+            <Select value={filters.staff_id} onValueChange={(v) => setFilters({ ...filters, staff_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All staff</SelectItem>
+                {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Service</Label>
+            <Select value={filters.service_id} onValueChange={(v) => setFilters({ ...filters, service_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All services</SelectItem>
+                {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No invoices match these filters.</p>
+        ) : (
+          <>
+            <ul className="divide-y">
+              {rows.map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-medium">{r.invoice_number} · {r.service_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {fmtDateTime(r.issued_at)} · {r.customer_name} · {r.staff_name ?? "—"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{r.currency} {Number(r.total).toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">{r.status}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end border-t pt-3 text-sm">
+              <span className="text-muted-foreground">Total:&nbsp;</span>
+              <span className="font-semibold">${total.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

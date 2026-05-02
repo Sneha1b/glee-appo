@@ -27,8 +27,8 @@ function CustomerAuth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function ensureRole(uid: string) {
-    await supabase.from("user_roles").upsert({ user_id: uid, role: "customer" }, { onConflict: "user_id,role" });
+  async function ensureRole(_uid: string) {
+    await supabase.rpc("assign_my_role", { p_role: "customer" });
   }
 
   async function submit(e: React.FormEvent) {

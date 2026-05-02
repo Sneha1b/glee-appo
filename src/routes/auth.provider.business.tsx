@@ -46,10 +46,18 @@ function BusinessProfile() {
         const { error } = await supabase.from("businesses").update(form).eq("id", businessId);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from("businesses").insert(form).select("id").single();
+        const { error } = await supabase.rpc("create_business_with_owner", {
+          p_name: form.name,
+          p_category: form.category || undefined,
+          p_phone: form.phone || undefined,
+          p_address_line1: form.address_line1 || undefined,
+          p_address_line2: form.address_line2 || undefined,
+          p_city: form.city || undefined,
+          p_region: form.region || undefined,
+          p_postal_code: form.postal_code || undefined,
+          p_country: form.country || undefined,
+        });
         if (error) throw error;
-        const { error: linkErr } = await supabase.from("business_owners").insert({ user_id: user.id, business_id: data.id });
-        if (linkErr) throw linkErr;
       }
       await refresh();
       toast.success("Business saved");

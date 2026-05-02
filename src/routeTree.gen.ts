@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BusinessesBusinessIdRouteImport } from './routes/businesses.$businessId'
 import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
 import { Route as AuthProviderRouteImport } from './routes/auth.provider'
 import { Route as AuthCustomerRouteImport } from './routes/auth.customer'
@@ -25,6 +26,11 @@ const AdminRoute = AdminRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BusinessesBusinessIdRoute = BusinessesBusinessIdRouteImport.update({
+  id: '/businesses/$businessId',
+  path: '/businesses/$businessId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookServiceIdRoute = BookServiceIdRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
+    | '/businesses/$businessId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
+    | '/businesses/$businessId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
+    | '/businesses/$businessId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
   BookServiceIdRoute: typeof BookServiceIdRoute
+  BusinessesBusinessIdRoute: typeof BusinessesBusinessIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -133,6 +146,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/businesses/$businessId': {
+      id: '/businesses/$businessId'
+      path: '/businesses/$businessId'
+      fullPath: '/businesses/$businessId'
+      preLoaderRoute: typeof BusinessesBusinessIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book/$serviceId': {
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthProviderRoute: AuthProviderRouteWithChildren,
   BookServiceIdRoute: BookServiceIdRoute,
+  BusinessesBusinessIdRoute: BusinessesBusinessIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

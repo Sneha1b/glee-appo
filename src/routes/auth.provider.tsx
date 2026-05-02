@@ -27,8 +27,8 @@ function ProviderAuth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function ensureRole(uid: string) {
-    await supabase.from("user_roles").upsert({ user_id: uid, role: "provider" }, { onConflict: "user_id,role" });
+  async function ensureRole(_uid: string) {
+    await supabase.rpc("assign_my_role", { p_role: "provider" });
   }
 
   async function postAuth(uid: string) {
