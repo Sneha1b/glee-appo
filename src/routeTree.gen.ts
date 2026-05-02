@@ -17,6 +17,7 @@ import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
 import { Route as AuthProviderRouteImport } from './routes/auth.provider'
 import { Route as AuthCustomerRouteImport } from './routes/auth.customer'
 import { Route as AdminsAdminIdRouteImport } from './routes/admins.$adminId'
+import { Route as AuthProviderProfileRouteImport } from './routes/auth.provider.profile'
 import { Route as AuthProviderBusinessRouteImport } from './routes/auth.provider.business'
 import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.profile'
 import { Route as ApiBookingBookingIdRouteImport } from './routes/api/booking.$bookingId'
@@ -62,6 +63,11 @@ const AdminsAdminIdRoute = AdminsAdminIdRouteImport.update({
   path: '/admins/$adminId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthProviderProfileRoute = AuthProviderProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthProviderRoute,
+} as any)
 const AuthProviderBusinessRoute = AuthProviderBusinessRouteImport.update({
   id: '/business',
   path: '/business',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
+  '/auth/provider/profile': typeof AuthProviderProfileRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
 }
 export interface FileRoutesByTo {
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
+  '/auth/provider/profile': typeof AuthProviderProfileRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
 }
 export interface FileRoutesById {
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
+  '/auth/provider/profile': typeof AuthProviderProfileRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
 }
 export interface FileRouteTypes {
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
+    | '/auth/provider/profile'
     | '/admins/$adminId/bookings/$bookingId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
+    | '/auth/provider/profile'
     | '/admins/$adminId/bookings/$bookingId'
   id:
     | '__root__'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
+    | '/auth/provider/profile'
     | '/admins/$adminId/bookings/$bookingId'
   fileRoutesById: FileRoutesById
 }
@@ -242,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminsAdminIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/provider/profile': {
+      id: '/auth/provider/profile'
+      path: '/profile'
+      fullPath: '/auth/provider/profile'
+      preLoaderRoute: typeof AuthProviderProfileRouteImport
+      parentRoute: typeof AuthProviderRoute
+    }
     '/auth/provider/business': {
       id: '/auth/provider/business'
       path: '/business'
@@ -299,10 +318,12 @@ const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
 
 interface AuthProviderRouteChildren {
   AuthProviderBusinessRoute: typeof AuthProviderBusinessRoute
+  AuthProviderProfileRoute: typeof AuthProviderProfileRoute
 }
 
 const AuthProviderRouteChildren: AuthProviderRouteChildren = {
   AuthProviderBusinessRoute: AuthProviderBusinessRoute,
+  AuthProviderProfileRoute: AuthProviderProfileRoute,
 }
 
 const AuthProviderRouteWithChildren = AuthProviderRoute._addFileChildren(
