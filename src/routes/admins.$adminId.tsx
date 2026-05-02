@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ArrowLeft, Plus, LogOut, Save } from "lucide-react";
-import { fmtDateTime } from "@/lib/format";
+import { Trash2, ArrowLeft, Plus, LogOut, Save, ChevronRight, Download } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { fmtDateTime, fmtTime } from "@/lib/format";
+import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admins/$adminId")({
