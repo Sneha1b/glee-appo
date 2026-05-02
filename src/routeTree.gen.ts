@@ -19,6 +19,7 @@ import { Route as AuthCustomerRouteImport } from './routes/auth.customer'
 import { Route as AdminsAdminIdRouteImport } from './routes/admins.$adminId'
 import { Route as AuthProviderBusinessRouteImport } from './routes/auth.provider.business'
 import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.profile'
+import { Route as ApiBookingBookingIdRouteImport } from './routes/api/booking.$bookingId'
 import { Route as AdminsAdminIdBookingsBookingIdRouteImport } from './routes/admins.$adminId.bookings.$bookingId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -71,6 +72,11 @@ const AuthCustomerProfileRoute = AuthCustomerProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthCustomerRoute,
 } as any)
+const ApiBookingBookingIdRoute = ApiBookingBookingIdRouteImport.update({
+  id: '/api/booking/$bookingId',
+  path: '/api/booking/$bookingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminsAdminIdBookingsBookingIdRoute =
   AdminsAdminIdBookingsBookingIdRouteImport.update({
     id: '/bookings/$bookingId',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/businesses/': typeof BusinessesIndexRoute
+  '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/businesses': typeof BusinessesIndexRoute
+  '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/businesses/': typeof BusinessesIndexRoute
+  '/api/booking/$bookingId': typeof ApiBookingBookingIdRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/businesses/$businessId'
     | '/pay/$bookingId'
     | '/businesses/'
+    | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/businesses/$businessId'
     | '/pay/$bookingId'
     | '/businesses'
+    | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/businesses/$businessId'
     | '/pay/$bookingId'
     | '/businesses/'
+    | '/api/booking/$bookingId'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   BusinessesBusinessIdRoute: typeof BusinessesBusinessIdRoute
   PayBookingIdRoute: typeof PayBookingIdRoute
   BusinessesIndexRoute: typeof BusinessesIndexRoute
+  ApiBookingBookingIdRoute: typeof ApiBookingBookingIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -243,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCustomerProfileRouteImport
       parentRoute: typeof AuthCustomerRoute
     }
+    '/api/booking/$bookingId': {
+      id: '/api/booking/$bookingId'
+      path: '/api/booking/$bookingId'
+      fullPath: '/api/booking/$bookingId'
+      preLoaderRoute: typeof ApiBookingBookingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admins/$adminId/bookings/$bookingId': {
       id: '/admins/$adminId/bookings/$bookingId'
       path: '/bookings/$bookingId'
@@ -298,6 +318,7 @@ const rootRouteChildren: RootRouteChildren = {
   BusinessesBusinessIdRoute: BusinessesBusinessIdRoute,
   PayBookingIdRoute: PayBookingIdRoute,
   BusinessesIndexRoute: BusinessesIndexRoute,
+  ApiBookingBookingIdRoute: ApiBookingBookingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
