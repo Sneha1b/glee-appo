@@ -57,8 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
+        // IMPORTANT: keep loading=true until role/profile/business are loaded,
+        // otherwise route guards (e.g. /admins/$id) see role=null and redirect.
         await loadAux(data.session.user.id);
       }
+      if (!mounted) return;
       setLoading(false);
     });
 
