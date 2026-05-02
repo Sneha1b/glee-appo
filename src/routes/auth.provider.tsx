@@ -41,7 +41,7 @@ function ProviderAuth() {
   async function postAuth(_uid: string) {
     // Navigate first; role assignment + invite acceptance happen in the background.
     // /provider re-runs accept_pending_business_invites on mount, so this is safe.
-    void ensureRole(_uid).then(() => supabase.rpc("accept_pending_business_invites" as any).catch(() => {}));
+    void ensureRole(_uid).then(() => Promise.resolve(supabase.rpc("accept_pending_business_invites" as any)).catch(() => {}));
     try { await refresh(); } catch (e) { console.warn("refresh failed", e); }
     navigate({ to: "/provider" });
   }
