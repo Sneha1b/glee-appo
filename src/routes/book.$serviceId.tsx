@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -22,6 +23,7 @@ type Service = { id: string; name: string; duration_min: number; price: number; 
 function BookPage() {
   const { serviceId } = Route.useParams();
   const navigate = useNavigate();
+  const { user, customerProfile } = useAuth();
   const [service, setService] = useState<Service | null>(null);
   const [date, setDate] = useState<Date | undefined>(() => {
     const t = new Date();
@@ -39,6 +41,17 @@ function BookPage() {
   const holderRef = useRef<string>("");
 
   if (!holderRef.current) holderRef.current = getSessionId();
+
+  // Prefill form for logged-in customers
+  useEffect(() => {
+    if (user) {
+      setForm({
+        name: customerProfile?.full_name || (user.user_metadata?.full_name as string) || "",
+        email: user.email || "",
+        phone: customerProfile?.phone || "",
+      });
+    }
+  }, [user, customerProfile]);
 
   // Load service
   useEffect(() => {

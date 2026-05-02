@@ -12,6 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
+import { Route as AuthProviderRouteImport } from './routes/auth.provider'
+import { Route as AuthCustomerRouteImport } from './routes/auth.customer'
+import { Route as AuthProviderBusinessRouteImport } from './routes/auth.provider.business'
+import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.profile'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
@@ -28,34 +32,90 @@ const BookServiceIdRoute = BookServiceIdRouteImport.update({
   path: '/book/$serviceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthProviderRoute = AuthProviderRouteImport.update({
+  id: '/auth/provider',
+  path: '/auth/provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCustomerRoute = AuthCustomerRouteImport.update({
+  id: '/auth/customer',
+  path: '/auth/customer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthProviderBusinessRoute = AuthProviderBusinessRouteImport.update({
+  id: '/business',
+  path: '/business',
+  getParentRoute: () => AuthProviderRoute,
+} as any)
+const AuthCustomerProfileRoute = AuthCustomerProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthCustomerRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/auth/customer': typeof AuthCustomerRouteWithChildren
+  '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/auth/customer/profile': typeof AuthCustomerProfileRoute
+  '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/auth/customer': typeof AuthCustomerRouteWithChildren
+  '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/auth/customer/profile': typeof AuthCustomerProfileRoute
+  '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/auth/customer': typeof AuthCustomerRouteWithChildren
+  '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
+  '/auth/customer/profile': typeof AuthCustomerProfileRoute
+  '/auth/provider/business': typeof AuthProviderBusinessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/book/$serviceId'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/auth/customer'
+    | '/auth/provider'
+    | '/book/$serviceId'
+    | '/auth/customer/profile'
+    | '/auth/provider/business'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/book/$serviceId'
-  id: '__root__' | '/' | '/admin' | '/book/$serviceId'
+  to:
+    | '/'
+    | '/admin'
+    | '/auth/customer'
+    | '/auth/provider'
+    | '/book/$serviceId'
+    | '/auth/customer/profile'
+    | '/auth/provider/business'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/auth/customer'
+    | '/auth/provider'
+    | '/book/$serviceId'
+    | '/auth/customer/profile'
+    | '/auth/provider/business'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
+  AuthProviderRoute: typeof AuthProviderRouteWithChildren
   BookServiceIdRoute: typeof BookServiceIdRoute
 }
 
@@ -82,12 +142,66 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/provider': {
+      id: '/auth/provider'
+      path: '/auth/provider'
+      fullPath: '/auth/provider'
+      preLoaderRoute: typeof AuthProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/customer': {
+      id: '/auth/customer'
+      path: '/auth/customer'
+      fullPath: '/auth/customer'
+      preLoaderRoute: typeof AuthCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/provider/business': {
+      id: '/auth/provider/business'
+      path: '/business'
+      fullPath: '/auth/provider/business'
+      preLoaderRoute: typeof AuthProviderBusinessRouteImport
+      parentRoute: typeof AuthProviderRoute
+    }
+    '/auth/customer/profile': {
+      id: '/auth/customer/profile'
+      path: '/profile'
+      fullPath: '/auth/customer/profile'
+      preLoaderRoute: typeof AuthCustomerProfileRouteImport
+      parentRoute: typeof AuthCustomerRoute
+    }
   }
 }
+
+interface AuthCustomerRouteChildren {
+  AuthCustomerProfileRoute: typeof AuthCustomerProfileRoute
+}
+
+const AuthCustomerRouteChildren: AuthCustomerRouteChildren = {
+  AuthCustomerProfileRoute: AuthCustomerProfileRoute,
+}
+
+const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
+  AuthCustomerRouteChildren,
+)
+
+interface AuthProviderRouteChildren {
+  AuthProviderBusinessRoute: typeof AuthProviderBusinessRoute
+}
+
+const AuthProviderRouteChildren: AuthProviderRouteChildren = {
+  AuthProviderBusinessRoute: AuthProviderBusinessRoute,
+}
+
+const AuthProviderRouteWithChildren = AuthProviderRoute._addFileChildren(
+  AuthProviderRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AuthCustomerRoute: AuthCustomerRouteWithChildren,
+  AuthProviderRoute: AuthProviderRouteWithChildren,
   BookServiceIdRoute: BookServiceIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Phone, Calendar as CalIcon, Settings } from "lucide-react";
+import { Clock, MapPin, Phone, Calendar as CalIcon, Settings, LogOut, User } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -37,6 +38,7 @@ type Service = {
 };
 
 function Home() {
+  const { user, role, customerProfile, signOut } = useAuth();
   const [biz, setBiz] = useState<Business | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -67,11 +69,34 @@ function Home() {
             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">SlotKit</p>
             <h1 className="text-xl font-semibold">{biz.name}</h1>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/admin">
-              <Settings /> Provider
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/auth/customer/profile">
+                    <User /> {customerProfile?.full_name || "Profile"}
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => signOut()}>
+                  <LogOut /> Sign out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/auth/customer" search={{ mode: "login" }}>Sign in</Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/auth/customer" search={{ mode: "signup" }}>Sign up</Link>
+                </Button>
+              </>
+            )}
+            <Button variant="ghost" size="sm" asChild>
+              <Link to={role === "provider" ? "/admin" : "/auth/provider"} search={role === "provider" ? undefined : { mode: "login" }}>
+                <Settings /> Provider
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
 
