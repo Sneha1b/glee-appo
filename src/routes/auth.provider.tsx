@@ -35,13 +35,14 @@ function ProviderAuth() {
   // brief null user → /auth/provider → here → back to /provider).
 
   async function ensureRole(_uid: string) {
-    await supabase.rpc("assign_my_role", { p_role: "provider" });
+    try { await supabase.rpc("assign_my_role", { p_role: "provider" }); } catch (e) { console.warn("assign_my_role failed", e); }
   }
 
   async function postAuth(_uid: string) {
-    await ensureRole(_uid);
-    await refresh();
-    await supabase.rpc("accept_pending_business_invites" as any);
+    // Navigate first; role assignment + invite acceptance happen in the background.
+    // /provider re-runs accept_pending_business_invites on mount, so this is safe.
+    void ensureRole(_uid).then(() => supabase.rpc("accept_pending_business_invites" as any).catch(() => {}));
+    try { await refresh(); } catch (e) { console.warn("refresh failed", e); }
     navigate({ to: "/provider" });
   }
 
