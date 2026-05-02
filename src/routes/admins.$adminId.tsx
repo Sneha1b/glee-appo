@@ -422,42 +422,80 @@ function ServicesTab({ businessId }: { businessId: string }) {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{editingId ? "Edit service" : "Add service"}</CardTitle>
-          <CardDescription>Use the launch date for services that aren't bookable yet.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Duration (min)</Label><Input type="number" value={form.duration_min} onChange={(e) => setForm({ ...form, duration_min: Number(e.target.value) })} /></div>
-            <div><Label>Price ($)</Label><Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
-          </div>
-          <div>
-            <Label>Category</Label>
-            <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
-              <SelectContent>{cats.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Available from <span className="text-muted-foreground">(optional)</span></Label>
-            <Input
-              type="date"
-              value={form.available_from}
-              onChange={(e) => setForm({ ...form, available_from: e.target.value })}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">Hide from booking until this date.</p>
-          </div>
-          <div><Label>Description</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-          <div className="flex gap-2">
-            <Button onClick={save} className="flex-1">
-              {editingId ? <><Save /> Save changes</> : <><Plus /> Add service</>}
-            </Button>
-            {editingId && <Button variant="outline" onClick={cancelEdit}>Cancel</Button>}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Categories</CardTitle>
+            <CardDescription>Group your services so customers can browse them.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Haircuts"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+              />
+              <Button onClick={addCategory} type="button"><Plus /> Add</Button>
+            </div>
+            {cats.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No categories yet.</p>
+            ) : (
+              <ul className="flex flex-wrap gap-2">
+                {cats.map((c) => (
+                  <li key={c.id} className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-3 py-1 text-sm">
+                    {c.name}
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => removeCategory(c.id)}
+                      title="Remove category"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{editingId ? "Edit service" : "Add service"}</CardTitle>
+            <CardDescription>Use the launch date for services that aren't bookable yet.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Duration (min)</Label><Input type="number" value={form.duration_min} onChange={(e) => setForm({ ...form, duration_min: Number(e.target.value) })} /></div>
+              <div><Label>Price ($)</Label><Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
+                <SelectTrigger><SelectValue placeholder={cats.length ? "Pick a category" : "Add a category first"} /></SelectTrigger>
+                <SelectContent>{cats.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Available from <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                type="date"
+                value={form.available_from}
+                onChange={(e) => setForm({ ...form, available_from: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Hide from booking until this date.</p>
+            </div>
+            <div><Label>Description</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div className="flex gap-2">
+              <Button onClick={save} className="flex-1">
+                {editingId ? <><Save /> Save changes</> : <><Plus /> Add service</>}
+              </Button>
+              {editingId && <Button variant="outline" onClick={cancelEdit}>Cancel</Button>}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
