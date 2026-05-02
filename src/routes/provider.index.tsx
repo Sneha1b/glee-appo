@@ -49,10 +49,9 @@ function ProviderLanding() {
     // Run profile check + owner-link fetch in parallel. Invite acceptance runs
     // in the background — it almost never returns rows after first login and
     // shouldn't block the businesses grid from rendering.
-    void supabase.rpc("accept_pending_business_invites" as any).then(() => {
-      // If invites were just accepted, refresh the list silently.
-      void refreshBusinesses();
-    }).catch(() => {});
+    void Promise.resolve(supabase.rpc("accept_pending_business_invites" as any))
+      .then(() => { void refreshBusinesses(); })
+      .catch(() => {});
 
     const [{ data: pp }, { data: links }] = await Promise.all([
       supabase.from("provider_profiles" as any).select("first_name, last_name, phone").eq("user_id", user!.id).maybeSingle() as any,
