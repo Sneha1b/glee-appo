@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-r
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,7 @@ const search = z.object({ mode: z.enum(["login", "signup"]).optional() });
 export const Route = createFileRoute("/auth/provider")({
   component: ProviderAuth,
   validateSearch: (s) => search.parse(s),
-  head: () => ({ meta: [{ title: "Provider sign in — SlotKit" }] }),
+  head: () => ({ meta: [{ title: "Provider sign in — Schedora" }] }),
 });
 
 function ProviderAuth() {
@@ -27,7 +26,6 @@ function ProviderAuth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // If user lands here already authenticated (e.g. returning from Google OAuth), route them.
   useEffect(() => {
     if (authLoading) return;
     if (user) { void postAuth(user.id); }
@@ -41,7 +39,24 @@ function ProviderAuth() {
   async function postAuth(uid: string) {
     await ensureRole(uid);
     await refresh();
-    const { data: bo } = await supabase.from("business_owners").select("business_id").eq("user_id", uid).maybeSingle();
+
+    // First-time providers fill out their personal profile.
+    const { data: pp } = await supabase
+      .from("provider_profiles" as any)
+      .select("first_name, last_name, phone")
+      .eq("user_id", uid)
+      .maybeSingle() as any;
+    const profileComplete = pp && pp.first_name && pp.last_name && pp.phone;
+    if (!profileComplete) {
+      navigate({ to: "/auth/provider/profile" });
+      return;
+    }
+
+    const { data: bo } = await supabase
+      .from("business_owners")
+      .select("business_id")
+      .eq("user_id", uid)
+      .maybeSingle();
     if (bo?.business_id) {
       navigate({ to: "/admins/$adminId", params: { adminId: bo.business_id } });
     } else {
@@ -56,28 +71,26 @@ function ProviderAuth() {
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/provider/business` },
+          options: { emailRedirectTo: `${window.location.origin}/auth/provider/profile` },
         });
         if (error) throw error;
         if (data.user) await ensureRole(data.user.id);
-        if (!data.session) { toast.success("Check your email to confirm your account."); return; }
+        if (!data.session) {
+          const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInErr) {
+            toast.success("Account created. Please sign in.");
+            navigate({ to: "/auth/provider", search: { mode: "login" } });
+            return;
+          }
+        }
         await postAuth(data.user!.id);
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         await postAuth(data.user.id);
       }
-    } catch (err: any) { toast.error(err.message ?? "Something went wrong"); } finally { setBusy(false); }
-  }
-
-  async function google() {
-    setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/provider` });
-      if (result.error) { toast.error(result.error.message); return; }
-      if (result.redirected) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await postAuth(user.id);
+    } catch (err: any) {
+      toast.error(err.message ?? "Something went wrong");
     } finally { setBusy(false); }
   }
 
@@ -91,11 +104,6 @@ function ProviderAuth() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full" onClick={google} disabled={busy}>Continue with Google</Button>
-          <div className="relative text-center text-xs text-muted-foreground">
-            <span className="bg-card px-2 relative z-10">or</span>
-            <div className="absolute inset-0 top-1/2 border-t" />
-          </div>
           <form onSubmit={submit} className="space-y-3">
             <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
             <div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div>
