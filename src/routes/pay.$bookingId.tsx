@@ -86,6 +86,8 @@ function PayPage() {
       } else {
         toast.success("Payment successful (mock). Your booking is confirmed.");
       }
+      // Auto-redirect to the customer's reservations page so they can see all upcoming bookings.
+      setTimeout(() => navigate({ to: "/reservations" }), 2500);
     } catch (err: any) {
       toast.error(err?.message ?? "Something went wrong");
     } finally {
