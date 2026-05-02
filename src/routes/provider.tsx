@@ -26,6 +26,7 @@ function ProviderLanding() {
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [busy, setBusy] = useState(true);
+  const [profileComplete, setProfileComplete] = useState(true);
   const loadedForUidRef = useRef<string | null>(null);
   const redirectedRef = useRef<string | null>(null);
 
