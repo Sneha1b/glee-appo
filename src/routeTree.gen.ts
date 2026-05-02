@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BusinessesIndexRouteImport } from './routes/businesses.index'
 import { Route as PayBookingIdRouteImport } from './routes/pay.$bookingId'
 import { Route as BusinessesBusinessIdRouteImport } from './routes/businesses.$businessId'
 import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
@@ -23,6 +24,11 @@ import { Route as AdminsAdminIdBookingsBookingIdRouteImport } from './routes/adm
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BusinessesIndexRoute = BusinessesIndexRouteImport.update({
+  id: '/businesses/',
+  path: '/businesses/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PayBookingIdRoute = PayBookingIdRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
+  '/businesses/': typeof BusinessesIndexRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
+  '/businesses': typeof BusinessesIndexRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
+  '/businesses/': typeof BusinessesIndexRoute
   '/auth/customer/profile': typeof AuthCustomerProfileRoute
   '/auth/provider/business': typeof AuthProviderBusinessRoute
   '/admins/$adminId/bookings/$bookingId': typeof AdminsAdminIdBookingsBookingIdRoute
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/book/$serviceId'
     | '/businesses/$businessId'
     | '/pay/$bookingId'
+    | '/businesses/'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/book/$serviceId'
     | '/businesses/$businessId'
     | '/pay/$bookingId'
+    | '/businesses'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/book/$serviceId'
     | '/businesses/$businessId'
     | '/pay/$bookingId'
+    | '/businesses/'
     | '/auth/customer/profile'
     | '/auth/provider/business'
     | '/admins/$adminId/bookings/$bookingId'
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   BookServiceIdRoute: typeof BookServiceIdRoute
   BusinessesBusinessIdRoute: typeof BusinessesBusinessIdRoute
   PayBookingIdRoute: typeof PayBookingIdRoute
+  BusinessesIndexRoute: typeof BusinessesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/businesses/': {
+      id: '/businesses/'
+      path: '/businesses'
+      fullPath: '/businesses/'
+      preLoaderRoute: typeof BusinessesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pay/$bookingId': {
@@ -277,6 +297,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookServiceIdRoute: BookServiceIdRoute,
   BusinessesBusinessIdRoute: BusinessesBusinessIdRoute,
   PayBookingIdRoute: PayBookingIdRoute,
+  BusinessesIndexRoute: BusinessesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
