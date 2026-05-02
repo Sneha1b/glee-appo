@@ -42,11 +42,12 @@ function BusinessProfile() {
     if (!user) return;
     setBusy(true);
     try {
+      let targetBusinessId = businessId;
       if (businessId) {
         const { error } = await supabase.from("businesses").update(form).eq("id", businessId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.rpc("create_business_with_owner", {
+        const { data, error } = await supabase.rpc("create_business_with_owner", {
           p_name: form.name,
           p_category: form.category || undefined,
           p_phone: form.phone || undefined,
@@ -58,10 +59,13 @@ function BusinessProfile() {
           p_country: form.country || undefined,
         });
         if (error) throw error;
+        targetBusinessId = data as unknown as string;
       }
       await refresh();
       toast.success("Business saved");
-      navigate({ to: "/admin" });
+      if (targetBusinessId) {
+        navigate({ to: "/admins/$adminId", params: { adminId: targetBusinessId } });
+      }
     } catch (err: any) { toast.error(err.message); } finally { setBusy(false); }
   }
 
