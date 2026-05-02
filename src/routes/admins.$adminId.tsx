@@ -113,6 +113,7 @@ function Admin() {
             <TabsTrigger value="staff">Staff</TabsTrigger>
             <TabsTrigger value="store">Store</TabsTrigger>
             <TabsTrigger value="blocks">Time blocks</TabsTrigger>
+            <TabsTrigger value="metrics">Metrics</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
           </TabsList>
           <TabsContent value="bookings"><BookingsTab businessId={businessId} adminId={adminId} /></TabsContent>
@@ -120,6 +121,7 @@ function Admin() {
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
           <TabsContent value="store"><StoreTab businessId={businessId} /></TabsContent>
           <TabsContent value="blocks"><BlocksTab /></TabsContent>
+          <TabsContent value="metrics"><MetricsTab businessId={businessId} /></TabsContent>
           <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
         </Tabs>
       </main>
