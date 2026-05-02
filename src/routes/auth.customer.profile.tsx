@@ -90,13 +90,7 @@ function ProfilePage() {
           <CardDescription>Tell us your name and phone number to make booking faster.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={(e) => {
-              setEditMode(true);
-              save(e);
-            }}
-            className="space-y-3"
-          >
+          <form onSubmit={save} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label>First name</Label>
