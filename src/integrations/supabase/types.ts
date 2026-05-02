@@ -474,61 +474,7 @@ export type Database = {
       }
     }
     Views: {
-      active_slot_locks: {
-        Row: {
-          end_at: string | null
-          expires_at: string | null
-          staff_id: string | null
-          start_at: string | null
-        }
-        Insert: {
-          end_at?: string | null
-          expires_at?: string | null
-          staff_id?: string | null
-          start_at?: string | null
-        }
-        Update: {
-          end_at?: string | null
-          expires_at?: string | null
-          staff_id?: string | null
-          start_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "slot_locks_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      booked_slots: {
-        Row: {
-          end_at: string | null
-          staff_id: string | null
-          start_at: string | null
-        }
-        Insert: {
-          end_at?: string | null
-          staff_id?: string | null
-          start_at?: string | null
-        }
-        Update: {
-          end_at?: string | null
-          staff_id?: string | null
-          start_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bookings_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       acquire_slot_lock: {
@@ -585,6 +531,23 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      get_active_slot_locks: {
+        Args: { p_from: string; p_staff_ids: string[]; p_to: string }
+        Returns: {
+          end_at: string
+          expires_at: string
+          staff_id: string
+          start_at: string
+        }[]
+      }
+      get_booked_slots: {
+        Args: { p_from: string; p_staff_ids: string[]; p_to: string }
+        Returns: {
+          end_at: string
+          staff_id: string
+          start_at: string
+        }[]
       }
       has_role: {
         Args: {
