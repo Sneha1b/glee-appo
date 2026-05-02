@@ -55,6 +55,13 @@ function BusinessPage() {
   const [cats, setCats] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authPromptServiceId, setAuthPromptServiceId] = useState<string | null>(null);
+
+  function handleBookClick(serviceId: string, e: React.MouseEvent) {
+    if (user) return; // already signed in — let the Link navigate normally
+    e.preventDefault();
+    setAuthPromptServiceId(serviceId);
+  }
 
   useEffect(() => {
     (async () => {
