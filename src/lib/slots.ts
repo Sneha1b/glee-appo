@@ -153,7 +153,7 @@ export async function confirmBooking(args: {
     p_start: args.startAt,
     p_name: args.name,
     p_email: args.email,
-    p_phone: args.phone ?? null,
+    p_phone: args.phone ?? "",
   });
   if (error) throw error;
   return data;
