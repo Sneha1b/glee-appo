@@ -197,7 +197,11 @@ function BusinessPage() {
                         <Clock className="size-4" /> {s.duration_min} min
                       </span>
                       <Button asChild size="sm">
-                        <Link to="/book/$serviceId" params={{ serviceId: s.id }}>
+                        <Link
+                          to="/book/$serviceId"
+                          params={{ serviceId: s.id }}
+                          onClick={(e) => handleBookClick(s.id, e)}
+                        >
                           <CalIcon /> Book
                         </Link>
                       </Button>
