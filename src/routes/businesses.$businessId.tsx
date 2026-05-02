@@ -129,20 +129,20 @@ function BusinessPage() {
             </div>
           ) : null}
           <div className="p-6 pt-6 sm:pt-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              {biz.logo_url && (
-                <img
-                  src={biz.logo_url}
-                  alt={`${biz.name} logo`}
-                  className={`size-16 shrink-0 rounded-lg border bg-background object-cover shadow-sm ${biz.banner_url ? "sm:-mt-16" : ""}`}
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                {biz.category && <Badge variant="secondary" className="mb-2">{biz.category}</Badge>}
-                <h2 className="text-2xl font-semibold tracking-tight">{biz.name}</h2>
-                {biz.description && (
-                  <p className="mt-2 max-w-2xl text-muted-foreground">{biz.description}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                {biz.logo_url && (
+                  <img
+                    src={biz.logo_url}
+                    alt={`${biz.name} logo`}
+                    className="size-12 shrink-0 rounded-lg border bg-background object-cover shadow-sm"
+                  />
                 )}
+                <h2 className="text-2xl font-semibold tracking-tight">{biz.name}</h2>
+              </div>
+              {biz.description && (
+                <p className="mt-3 max-w-2xl text-muted-foreground">{biz.description}</p>
+              )}
                 <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
                   {addressLine && (
                     <a
