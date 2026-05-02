@@ -77,6 +77,8 @@ function Admin() {
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    // role may briefly be null right after sign-in while aux data loads — wait for it.
+    if (role === null) return;
     if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     let cancelled = false;
     setOwnership("checking");
