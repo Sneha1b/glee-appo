@@ -15,6 +15,7 @@ import { Route as ProviderIndexRouteImport } from './routes/provider.index'
 import { Route as BusinessesIndexRouteImport } from './routes/businesses.index'
 import { Route as ProviderNewRouteImport } from './routes/provider.new'
 import { Route as PayBookingIdRouteImport } from './routes/pay.$bookingId'
+import { Route as InternalTestsRouteImport } from './routes/internal.tests'
 import { Route as BusinessesBusinessIdRouteImport } from './routes/businesses.$businessId'
 import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
 import { Route as AuthProviderRouteImport } from './routes/auth.provider'
@@ -54,6 +55,11 @@ const ProviderNewRoute = ProviderNewRouteImport.update({
 const PayBookingIdRoute = PayBookingIdRouteImport.update({
   id: '/pay/$bookingId',
   path: '/pay/$bookingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InternalTestsRoute = InternalTestsRouteImport.update({
+  id: '/internal/tests',
+  path: '/internal/tests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusinessesBusinessIdRoute = BusinessesBusinessIdRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
+  '/internal/tests': typeof InternalTestsRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses/': typeof BusinessesIndexRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
+  '/internal/tests': typeof InternalTestsRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses': typeof BusinessesIndexRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
   '/businesses/$businessId': typeof BusinessesBusinessIdRoute
+  '/internal/tests': typeof InternalTestsRoute
   '/pay/$bookingId': typeof PayBookingIdRoute
   '/provider/new': typeof ProviderNewRoute
   '/businesses/': typeof BusinessesIndexRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/auth/provider'
     | '/book/$serviceId'
     | '/businesses/$businessId'
+    | '/internal/tests'
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses/'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/auth/provider'
     | '/book/$serviceId'
     | '/businesses/$businessId'
+    | '/internal/tests'
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/auth/provider'
     | '/book/$serviceId'
     | '/businesses/$businessId'
+    | '/internal/tests'
     | '/pay/$bookingId'
     | '/provider/new'
     | '/businesses/'
@@ -228,6 +240,7 @@ export interface RootRouteChildren {
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
   BookServiceIdRoute: typeof BookServiceIdRoute
   BusinessesBusinessIdRoute: typeof BusinessesBusinessIdRoute
+  InternalTestsRoute: typeof InternalTestsRoute
   PayBookingIdRoute: typeof PayBookingIdRoute
   ProviderNewRoute: typeof ProviderNewRoute
   BusinessesIndexRoute: typeof BusinessesIndexRoute
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       path: '/pay/$bookingId'
       fullPath: '/pay/$bookingId'
       preLoaderRoute: typeof PayBookingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/internal/tests': {
+      id: '/internal/tests'
+      path: '/internal/tests'
+      fullPath: '/internal/tests'
+      preLoaderRoute: typeof InternalTestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/businesses/$businessId': {
@@ -398,6 +418,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthProviderRoute: AuthProviderRouteWithChildren,
   BookServiceIdRoute: BookServiceIdRoute,
   BusinessesBusinessIdRoute: BusinessesBusinessIdRoute,
+  InternalTestsRoute: InternalTestsRoute,
   PayBookingIdRoute: PayBookingIdRoute,
   ProviderNewRoute: ProviderNewRoute,
   BusinessesIndexRoute: BusinessesIndexRoute,

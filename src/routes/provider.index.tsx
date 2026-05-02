@@ -46,20 +46,21 @@ function ProviderLanding() {
 
   async function load() {
     setBusy(true);
-    // Profile completeness is informational only — surface a banner instead of forcing a redirect
-    const { data: pp } = await supabase
-      .from("provider_profiles" as any)
-      .select("first_name, last_name, phone")
-      .eq("user_id", user!.id)
-      .maybeSingle() as any;
+    // Run profile check + owner-link fetch in parallel. Invite acceptance runs
+    // in the background — it almost never returns rows after first login and
+    // shouldn't block the businesses grid from rendering.
+    void supabase.rpc("accept_pending_business_invites" as any).then(() => {
+      // If invites were just accepted, refresh the list silently.
+      void refreshBusinesses();
+    }).catch(() => {});
+
+    const [{ data: pp }, { data: links }] = await Promise.all([
+      supabase.from("provider_profiles" as any).select("first_name, last_name, phone").eq("user_id", user!.id).maybeSingle() as any,
+      supabase.from("business_owners").select("business_id").eq("user_id", user!.id),
+    ]);
     const complete = !!(pp && pp.first_name && pp.last_name && pp.phone);
     setProfileComplete(complete);
-    // Auto-claim any pending co-manager invites for this email
-    await supabase.rpc("accept_pending_business_invites" as any);
-    const { data: links } = await supabase
-      .from("business_owners")
-      .select("business_id")
-      .eq("user_id", user!.id);
+
     const ids = (links ?? []).map((l: any) => l.business_id).filter(Boolean);
     if (ids.length === 0) { setBusinesses([]); setBusy(false); return; }
     const { data } = await supabase
@@ -68,6 +69,21 @@ function ProviderLanding() {
       .in("id", ids);
     setBusinesses((data as Biz[]) ?? []);
     setBusy(false);
+  }
+
+  async function refreshBusinesses() {
+    if (!user) return;
+    const { data: links } = await supabase
+      .from("business_owners")
+      .select("business_id")
+      .eq("user_id", user.id);
+    const ids = (links ?? []).map((l: any) => l.business_id).filter(Boolean);
+    if (ids.length === 0) return;
+    const { data } = await supabase
+      .from("businesses")
+      .select("id, name, category, city, region, logo_url, banner_url")
+      .in("id", ids);
+    setBusinesses((data as Biz[]) ?? []);
   }
 
   return (
