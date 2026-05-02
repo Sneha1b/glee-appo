@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ArrowLeft, Plus, LogOut, Save, ChevronRight, Download } from "lucide-react";
+import { Trash2, ArrowLeft, Plus, LogOut, Save, ChevronRight, Download, Store, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { fmtDateTime, fmtTime } from "@/lib/format";
 import { jsPDF } from "jspdf";
@@ -110,12 +110,14 @@ function Admin() {
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="store">Store</TabsTrigger>
             <TabsTrigger value="blocks">Time blocks</TabsTrigger>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
           </TabsList>
           <TabsContent value="bookings"><BookingsTab businessId={businessId} adminId={adminId} /></TabsContent>
           <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
+          <TabsContent value="store"><StoreTab businessId={businessId} /></TabsContent>
           <TabsContent value="blocks"><BlocksTab /></TabsContent>
           <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
         </Tabs>
