@@ -45,6 +45,14 @@ function Admin() {
             <Link to="/"><ArrowLeft /> Customer view</Link>
           </Button>
           <h1 className="font-semibold">Provider dashboard</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/auth/provider/business">Business profile</Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate({ to: "/" }); }}>
+              <LogOut /> Sign out
+            </Button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-6 py-8">
