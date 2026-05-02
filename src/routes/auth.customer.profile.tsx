@@ -80,7 +80,7 @@ function ProfilePage() {
     }
   }
 
-  if (loading) return <div className="p-12 text-center">Loading…</div>;
+  if (loading || !loaded) return <div className="p-12 text-center">Loading…</div>;
 
   return (
     <div className="min-h-screen grid place-items-center bg-background p-6">
