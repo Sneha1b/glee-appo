@@ -71,17 +71,7 @@ function ProviderProfilePage() {
       if (error) throw error;
       await refresh();
       toast.success("Profile saved");
-      // Continue to business setup or dashboard.
-      const { data: bo } = await supabase
-        .from("business_owners")
-        .select("business_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (bo?.business_id) {
-        navigate({ to: "/admins/$adminId", params: { adminId: bo.business_id } });
-      } else {
-        navigate({ to: "/auth/provider/business" });
-      }
+      navigate({ to: "/provider" });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
