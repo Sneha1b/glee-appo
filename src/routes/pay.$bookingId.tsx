@@ -52,6 +52,7 @@ function PayPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [card, setCard] = useState({
     name: "", number: "", expiry: "", cvc: "",
     addr1: "", city: "", region: "", zip: "",
