@@ -143,11 +143,14 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          banner_url: string | null
           category: string | null
           city: string | null
           country: string | null
           created_at: string
+          description: string | null
           id: string
+          logo_url: string | null
           name: string
           phone: string | null
           postal_code: string | null
@@ -157,11 +160,14 @@ export type Database = {
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          banner_url?: string | null
           category?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
+          description?: string | null
           id?: string
+          logo_url?: string | null
           name: string
           phone?: string | null
           postal_code?: string | null
@@ -171,11 +177,14 @@ export type Database = {
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          banner_url?: string | null
           category?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
+          description?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
           phone?: string | null
           postal_code?: string | null
@@ -187,24 +196,30 @@ export type Database = {
       customer_profiles: {
         Row: {
           created_at: string
+          first_name: string | null
           full_name: string
           id: string
+          last_name: string | null
           phone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          first_name?: string | null
           full_name: string
           id?: string
+          last_name?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          first_name?: string | null
           full_name?: string
           id?: string
+          last_name?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string
