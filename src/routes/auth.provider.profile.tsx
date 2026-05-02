@@ -9,13 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-export const Route = createFileRoute("/auth/customer/profile")({
-  component: ProfilePage,
-  head: () => ({ meta: [{ title: "Your profile" }] }),
+export const Route = createFileRoute("/auth/provider/profile")({
+  component: ProviderProfilePage,
+  head: () => ({ meta: [{ title: "Your provider profile — Schedora" }] }),
 });
 
-function ProfilePage() {
-  const { user, loading, refresh, customerProfile } = useAuth();
+function ProviderProfilePage() {
+  const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -26,21 +26,19 @@ function ProfilePage() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate({ to: "/auth/customer", search: { mode: "login" } });
+      navigate({ to: "/auth/provider", search: { mode: "login" } });
       return;
     }
     (async () => {
       const { data } = await supabase
-        .from("customer_profiles")
-        .select("first_name, last_name, full_name, phone")
+        .from("provider_profiles" as any)
+        .select("first_name, last_name, phone")
         .eq("user_id", user.id)
-        .maybeSingle();
-
+        .maybeSingle() as any;
       if (data) {
-        const d = data as any;
-        setFirstName(d.first_name ?? (d.full_name?.split(" ")[0] ?? ""));
-        setLastName(d.last_name ?? (d.full_name?.split(" ").slice(1).join(" ") ?? ""));
-        setPhone(d.phone ?? "");
+        setFirstName(data.first_name ?? "");
+        setLastName(data.last_name ?? "");
+        setPhone(data.phone ?? "");
       } else {
         const meta = (user.user_metadata ?? {}) as any;
         const guess = (meta.full_name ?? meta.name ?? "").trim();
@@ -57,30 +55,32 @@ function ProfilePage() {
     if (!user) return;
     setBusy(true);
     try {
-      const full = `${firstName} ${lastName}`.trim();
-      const { error } = await supabase.from("customer_profiles").upsert(
-        {
-          user_id: user.id,
-          first_name: firstName,
-          last_name: lastName,
-          full_name: full,
-          phone: phone || null,
-          updated_at: new Date().toISOString(),
-        } as any,
-        { onConflict: "user_id" },
-      );
+      const { error } = await supabase
+        .from("provider_profiles" as any)
+        .upsert(
+          {
+            user_id: user.id,
+            first_name: firstName,
+            last_name: lastName,
+            email: user.email ?? "",
+            phone,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
       if (error) throw error;
       await refresh();
       toast.success("Profile saved");
-      const { data: bizes } = await supabase
-        .from("businesses")
-        .select("id")
-        .order("created_at", { ascending: true })
-        .limit(2);
-      if (bizes && bizes.length === 1) {
-        navigate({ to: "/businesses/$businessId", params: { businessId: bizes[0].id } });
+      // Continue to business setup or dashboard.
+      const { data: bo } = await supabase
+        .from("business_owners")
+        .select("business_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (bo?.business_id) {
+        navigate({ to: "/admins/$adminId", params: { adminId: bo.business_id } });
       } else {
-        navigate({ to: "/businesses" });
+        navigate({ to: "/auth/provider/business" });
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -95,8 +95,10 @@ function ProfilePage() {
     <div className="min-h-screen grid place-items-center bg-background p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{customerProfile?.full_name ? "Edit your profile" : "Complete your profile"}</CardTitle>
-          <CardDescription>Tell us your name and phone number to make booking faster.</CardDescription>
+          <CardTitle>Tell us about you</CardTitle>
+          <CardDescription>
+            We use your name and phone so customers and your team can reach you.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={save} className="space-y-3">
@@ -125,7 +127,7 @@ function ProfilePage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />} Save profile
+              {busy && <Loader2 className="size-4 animate-spin" />} Save and continue
             </Button>
           </form>
         </CardContent>

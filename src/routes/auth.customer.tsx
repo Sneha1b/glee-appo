@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-r
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,7 @@ const search = z.object({ mode: z.enum(["login", "signup"]).optional() });
 export const Route = createFileRoute("/auth/customer")({
   component: CustomerAuth,
   validateSearch: (s) => search.parse(s),
-  head: () => ({ meta: [{ title: "Customer sign in — SlotKit" }] }),
+  head: () => ({ meta: [{ title: "Customer sign in — Schedora" }] }),
 });
 
 function CustomerAuth() {
@@ -27,7 +26,6 @@ function CustomerAuth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // If user lands here already authenticated (e.g. returning from Google OAuth), route them.
   useEffect(() => {
     if (authLoading) return;
     if (user) {
@@ -43,10 +41,18 @@ function CustomerAuth() {
     await supabase.rpc("assign_my_role", { p_role: "customer" });
   }
 
-  async function routeAfterAuth(_uid: string) {
-    // Send the customer straight to the single business when there's only one;
-    // otherwise to the directory. Profile completion is optional and can be
-    // edited later from the booking flow.
+  async function routeAfterAuth(uid: string) {
+    // First-time customers must complete their profile (first/last name, phone).
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("first_name, last_name, phone")
+      .eq("user_id", uid)
+      .maybeSingle() as any;
+    const complete = cp && cp.first_name && cp.last_name && cp.phone;
+    if (!complete) {
+      navigate({ to: "/auth/customer/profile" });
+      return;
+    }
     const { data: bizes } = await supabase
       .from("businesses")
       .select("id")
@@ -71,8 +77,13 @@ function CustomerAuth() {
         if (error) throw error;
         if (data.user) await ensureRole(data.user.id);
         if (!data.session) {
-          toast.success("Check your email to confirm your account.");
-          return;
+          // Auto-confirm is on, but if a project setting blocks it, fall back to login.
+          const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInErr) {
+            toast.success("Account created. Please sign in.");
+            navigate({ to: "/auth/customer", search: { mode: "login" } });
+            return;
+          }
         }
         await refresh();
         navigate({ to: "/auth/customer/profile" });
@@ -88,21 +99,6 @@ function CustomerAuth() {
     } finally { setBusy(false); }
   }
 
-  async function google() {
-    setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/customer` });
-      if (result.error) { toast.error(result.error.message); return; }
-      if (result.redirected) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await ensureRole(user.id);
-        await refresh();
-        await routeAfterAuth(user.id);
-      }
-    } finally { setBusy(false); }
-  }
-
   return (
     <div className="min-h-screen grid place-items-center bg-background p-6">
       <Card className="w-full max-w-md">
@@ -113,13 +109,6 @@ function CustomerAuth() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full" onClick={google} disabled={busy}>
-            Continue with Google
-          </Button>
-          <div className="relative text-center text-xs text-muted-foreground">
-            <span className="bg-card px-2 relative z-10">or</span>
-            <div className="absolute inset-0 top-1/2 border-t" />
-          </div>
           <form onSubmit={submit} className="space-y-3">
             <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
             <div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div>
