@@ -26,6 +26,7 @@ function ProviderLanding() {
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [busy, setBusy] = useState(true);
+  const [profileComplete, setProfileComplete] = useState(true);
   const loadedForUidRef = useRef<string | null>(null);
   const redirectedRef = useRef<string | null>(null);
 
@@ -45,17 +46,14 @@ function ProviderLanding() {
 
   async function load() {
     setBusy(true);
-    // Gate first-time providers into completing their profile
+    // Profile completeness is informational only — surface a banner instead of forcing a redirect
     const { data: pp } = await supabase
       .from("provider_profiles" as any)
       .select("first_name, last_name, phone")
       .eq("user_id", user!.id)
       .maybeSingle() as any;
-    const profileComplete = pp && pp.first_name && pp.last_name && pp.phone;
-    if (!profileComplete) {
-      navigate({ to: "/auth/provider/profile" });
-      return;
-    }
+    const complete = !!(pp && pp.first_name && pp.last_name && pp.phone);
+    setProfileComplete(complete);
     // Auto-claim any pending co-manager invites for this email
     await supabase.rpc("accept_pending_business_invites" as any);
     const { data: links } = await supabase
@@ -100,6 +98,23 @@ function ProviderLanding() {
             <Plus className="size-4" /> Add business
           </Button>
         </div>
+
+        {!busy && !profileComplete && (
+          <Card className="mb-6 border-dashed bg-muted/40">
+            <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <User className="size-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Complete your profile</p>
+                  <p className="text-sm text-muted-foreground">Add your name and phone so customers and your team can reach you.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/profile">Complete profile</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {busy ? (
           <div className="text-center text-muted-foreground py-20">Loading…</div>
