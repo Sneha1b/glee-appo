@@ -42,25 +42,22 @@ export async function computeSlots(opts: {
 
   const [avRes, bkRes, blRes, lkRes] = await Promise.all([
     supabase.from("availabilities").select("*").in("staff_id", staffIds).eq("weekday", weekday),
-    supabase
-      .from("bookings")
-      .select("staff_id,start_at,end_at")
-      .in("staff_id", staffIds)
-      .gte("start_at", dayStart.toISOString())
-      .lt("start_at", dayEnd.toISOString()),
+    supabase.rpc("get_booked_slots", {
+      p_staff_ids: staffIds,
+      p_from: dayStart.toISOString(),
+      p_to: dayEnd.toISOString(),
+    }),
     supabase
       .from("time_blocks")
       .select("staff_id,start_at,end_at")
       .in("staff_id", staffIds)
       .lt("start_at", dayEnd.toISOString())
       .gt("end_at", dayStart.toISOString()),
-    supabase
-      .from("slot_locks")
-      .select("staff_id,start_at,end_at,expires_at")
-      .in("staff_id", staffIds)
-      .gt("expires_at", new Date().toISOString())
-      .lt("start_at", dayEnd.toISOString())
-      .gt("end_at", dayStart.toISOString()),
+    supabase.rpc("get_active_slot_locks", {
+      p_staff_ids: staffIds,
+      p_from: dayStart.toISOString(),
+      p_to: dayEnd.toISOString(),
+    }),
   ]);
   if (avRes.error) throw avRes.error;
   if (bkRes.error) throw bkRes.error;

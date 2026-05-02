@@ -532,6 +532,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_active_slot_locks: {
+        Args: { p_from: string; p_staff_ids: string[]; p_to: string }
+        Returns: {
+          end_at: string
+          expires_at: string
+          staff_id: string
+          start_at: string
+        }[]
+      }
+      get_booked_slots: {
+        Args: { p_from: string; p_staff_ids: string[]; p_to: string }
+        Returns: {
+          end_at: string
+          staff_id: string
+          start_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
