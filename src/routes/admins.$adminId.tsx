@@ -673,18 +673,23 @@ function InvoicesTab({ businessId }: { businessId: string }) {
           <p className="text-sm text-muted-foreground">No invoices match these filters.</p>
         ) : (
           <>
-            <ul className="divide-y">
+            <ul className="divide-y rounded-md border">
               {rows.map((r) => (
-                <li key={r.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium">{r.invoice_number} · {r.service_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{r.invoice_number} · {r.service_name}</p>
+                    <p className="truncate text-sm text-muted-foreground">
                       {fmtDateTime(r.issued_at)} · {r.customer_name} · {r.staff_name ?? "—"}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{r.currency} {Number(r.total).toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">{r.status}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="font-semibold">{r.currency} {Number(r.total).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{r.status}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => downloadInvoicePdf(r)}>
+                      <Download /> PDF
+                    </Button>
                   </div>
                 </li>
               ))}
