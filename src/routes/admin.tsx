@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ArrowLeft, Plus } from "lucide-react";
+import { Trash2, ArrowLeft, Plus, LogOut } from "lucide-react";
 import { fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -23,18 +24,18 @@ export const Route = createFileRoute("/admin")({
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function Admin() {
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const { user, loading, businessId, role, signOut } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    supabase
-      .from("businesses")
-      .select("id")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => setBusinessId(data?.id ?? null));
-  }, []);
+    if (loading) return;
+    if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (!businessId) { navigate({ to: "/auth/provider/business" }); return; }
+  }, [loading, user, businessId, role]);
 
-  if (!businessId) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+  if (loading || !user || !businessId) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+
 
   return (
     <div className="min-h-screen bg-background">
