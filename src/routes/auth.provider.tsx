@@ -73,7 +73,7 @@ function ProviderAuth() {
   async function google() {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/provider/business` });
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/provider` });
       if (result.error) { toast.error(result.error.message); return; }
       if (result.redirected) return;
       const { data: { user } } = await supabase.auth.getUser();
