@@ -793,6 +793,10 @@ export type Database = {
         }[]
       }
       get_booking_public: { Args: { p_booking_id: string }; Returns: Json }
+      get_business_metrics: {
+        Args: { p_business_id: string; p_days?: number }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
