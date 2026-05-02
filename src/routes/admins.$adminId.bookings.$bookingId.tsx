@@ -18,8 +18,9 @@ export const Route = createFileRoute("/admins/$adminId/bookings/$bookingId")({
 
 function BookingDetail() {
   const { adminId, bookingId } = Route.useParams();
-  const { user, loading: authLoading, businessId, role } = useAuth();
+  const { user, loading: authLoading, role } = useAuth();
   const navigate = useNavigate();
+  const [ownership, setOwnership] = useState<"checking" | "owner" | "denied">("checking");
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -31,9 +32,23 @@ function BookingDetail() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || role !== "provider" || !businessId) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
-    if (businessId !== adminId) { navigate({ to: "/admins/$adminId", params: { adminId: businessId }, replace: true }); }
-  }, [authLoading, user, businessId, role, adminId]);
+    if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    let cancelled = false;
+    setOwnership("checking");
+    (async () => {
+      const { data, error } = await supabase
+        .from("business_owners")
+        .select("business_id")
+        .eq("user_id", user.id)
+        .eq("business_id", adminId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
+      setOwnership("owner");
+    })();
+    return () => { cancelled = true; };
+  }, [authLoading, user?.id, role, adminId]);
 
   async function load() {
     const { data } = await supabase
@@ -49,7 +64,10 @@ function BookingDetail() {
       setDate(d);
     }
   }
-  useEffect(() => { load(); }, [bookingId]);
+  useEffect(() => {
+    if (ownership !== "owner") return;
+    load();
+  }, [bookingId, ownership]);
 
   useEffect(() => {
     if (!rescheduling || !booking?.service || !date) return;
@@ -96,7 +114,7 @@ function BookingDetail() {
     } finally { setBusy(false); }
   }
 
-  if (loading || !booking) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
+  if (ownership !== "owner" || loading || !booking) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
 
   const cancelled = booking.status === "cancelled";
 
