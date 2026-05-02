@@ -732,20 +732,58 @@ function BlocksTab() {
 }
 
 function StoreTab({ businessId }: { businessId: string }) {
+  const { user } = useAuth();
   const [hours, setHours] = useState<any[]>([]);
   const [closures, setClosures] = useState<any[]>([]);
   const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
   const [newClosure, setNewClosure] = useState({ from_date: "", to_date: "", reason: "" });
+  const [profile, setProfile] = useState<{ name: string; description: string; logo_url: string | null }>({
+    name: "", description: "", logo_url: null,
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   async function load() {
-    const [h, c] = await Promise.all([
+    const [h, c, b] = await Promise.all([
       supabase.from("business_hours").select("*").eq("business_id", businessId).order("weekday"),
       supabase.from("business_closures").select("*").eq("business_id", businessId).gte("to_date", new Date().toISOString().slice(0, 10)).order("from_date"),
+      supabase.from("businesses").select("name, description, logo_url").eq("id", businessId).maybeSingle(),
     ]);
     setHours(h.data ?? []);
     setClosures(c.data ?? []);
+    if (b.data) setProfile({ name: b.data.name ?? "", description: b.data.description ?? "", logo_url: b.data.logo_url ?? null });
   }
   useEffect(() => { load(); }, [businessId]);
+
+  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("business-images").upload(path, file, { upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from("business-images").getPublicUrl(path);
+      setProfile((p) => ({ ...p, logo_url: data.publicUrl }));
+      toast.success("Logo uploaded — don't forget to save");
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally { setUploadingLogo(false); }
+  }
+
+  async function saveProfile() {
+    if (!profile.name.trim()) { toast.error("Name is required"); return; }
+    setSavingProfile(true);
+    const { error } = await supabase.from("businesses").update({
+      name: profile.name.trim(),
+      description: profile.description.trim() || null,
+      logo_url: profile.logo_url,
+    }).eq("id", businessId);
+    setSavingProfile(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Business profile updated");
+  }
 
   async function runCleanup() {
     const { data, error } = await supabase.rpc("cancel_out_of_hours_bookings", { p_business_id: businessId });
@@ -803,8 +841,69 @@ function StoreTab({ businessId }: { businessId: string }) {
   }
 
   return (
-    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_360px]">
+    <div className="mt-4 space-y-4">
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Store className="size-4" /> Business profile
+          </CardTitle>
+          <CardDescription>
+            This is what customers see at the top of your booking page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-[120px_1fr]">
+            <div className="space-y-2">
+              <Label className="text-xs">Logo</Label>
+              <div className="size-24 overflow-hidden rounded-lg border bg-muted/40 grid place-items-center">
+                {profile.logo_url ? (
+                  <img src={profile.logo_url} alt="Logo" className="size-full object-cover" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <Input type="file" accept="image/*" onChange={uploadLogo} disabled={uploadingLogo} className="h-8 text-xs" />
+              {profile.logo_url && (
+                <Button
+                  variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                  onClick={() => setProfile((p) => ({ ...p, logo_url: null }))}
+                >
+                  Remove logo
+                </Button>
+              )}
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="biz-name" className="text-xs">Business name</Label>
+                <Input
+                  id="biz-name"
+                  value={profile.name}
+                  onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Glee Salon"
+                />
+              </div>
+              <div>
+                <Label htmlFor="biz-desc" className="text-xs">Description</Label>
+                <Textarea
+                  id="biz-desc"
+                  value={profile.description}
+                  onChange={(e) => setProfile((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Tell customers what makes your business special…"
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={saveProfile} disabled={savingProfile} className="gap-2">
+                  <Save className="size-4" /> {savingProfile ? "Saving…" : "Save profile"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-[1fr_360px]">
+        <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Store className="size-4" /> Store hours
@@ -903,6 +1002,7 @@ function StoreTab({ businessId }: { businessId: string }) {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
