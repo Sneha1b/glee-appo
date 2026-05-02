@@ -47,10 +47,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let currentUid: string | null = null;
+    let mounted = true;
+
+    // Prime from the restored session FIRST and seed currentUid so the
+    // listener's INITIAL_SESSION event doesn't re-trigger loadAux.
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return;
+      currentUid = data.session?.user?.id ?? null;
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
+      if (data.session?.user) {
+        await loadAux(data.session.user.id);
+      }
+      setLoading(false);
+    });
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       const newUid = s?.user?.id ?? null;
       setSession(s);
-      // Only swap user object reference when the actual user identity changes
       if (newUid !== currentUid) {
         setUser(s?.user ?? null);
         currentUid = newUid;
@@ -58,11 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         else { setRole(null); setCustomerProfile(null); setBusinessId(null); }
       }
     });
-    refresh().then(() => {
-      // Seed currentUid from the restored session so the listener doesn't re-fire loadAux
-      supabase.auth.getSession().then(({ data }) => { currentUid = data.session?.user?.id ?? null; });
-    }).finally(() => setLoading(false));
-    return () => sub.subscription.unsubscribe();
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
 
   async function signOut() { await supabase.auth.signOut(); }
