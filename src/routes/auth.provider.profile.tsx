@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,19 @@ function ProviderProfilePage() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const fetchedForUidRef = useRef<string | null>(null);
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
+      if (redirectedRef.current) return;
+      redirectedRef.current = true;
       navigate({ to: "/auth/provider", search: { mode: "login" } });
       return;
     }
+    if (fetchedForUidRef.current === user.id) return;
+    fetchedForUidRef.current = user.id;
     (async () => {
       const { data } = await supabase
         .from("provider_profiles" as any)
@@ -48,7 +54,7 @@ function ProviderProfilePage() {
       }
       setLoaded(true);
     })();
-  }, [loading, user]);
+  }, [loading, user?.id]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();

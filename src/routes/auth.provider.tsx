@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/auth/provider")({
 function ProviderAuth() {
   const { mode = "login" } = useSearch({ from: "/auth/provider" });
   const navigate = useNavigate();
-  const { refresh, user, loading: authLoading } = useAuth();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -29,13 +29,10 @@ function ProviderAuth() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (authLoading) return;
-    // Only auto-redirect existing sessions on the login screen, so sign-up
-    // form stays interactive even if a stale session is present.
-    if (user && mode === "login") { void postAuth(user.id); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id, mode]);
+  // Note: we intentionally do NOT auto-redirect already-signed-in users away
+  // from this page. Doing so created a redirect loop with /provider when a
+  // provider's profile row is missing (/provider → /auth/provider/profile →
+  // brief null user → /auth/provider → here → back to /provider).
 
   async function ensureRole(_uid: string) {
     await supabase.rpc("assign_my_role", { p_role: "provider" });

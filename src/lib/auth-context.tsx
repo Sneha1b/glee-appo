@@ -46,12 +46,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let currentUid: string | null = null;
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s); setUser(s?.user ?? null);
-      if (s?.user) setTimeout(() => loadAux(s.user.id), 0);
-      else { setRole(null); setCustomerProfile(null); setBusinessId(null); }
+      const newUid = s?.user?.id ?? null;
+      setSession(s);
+      // Only swap user object reference when the actual user identity changes
+      if (newUid !== currentUid) {
+        setUser(s?.user ?? null);
+        currentUid = newUid;
+        if (s?.user) setTimeout(() => loadAux(s.user.id), 0);
+        else { setRole(null); setCustomerProfile(null); setBusinessId(null); }
+      }
     });
-    refresh().finally(() => setLoading(false));
+    refresh().then(() => {
+      // Seed currentUid from the restored session so the listener doesn't re-fire loadAux
+      supabase.auth.getSession().then(({ data }) => { currentUid = data.session?.user?.id ?? null; });
+    }).finally(() => setLoading(false));
     return () => sub.subscription.unsubscribe();
   }, []);
 

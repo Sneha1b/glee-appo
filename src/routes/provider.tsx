@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,19 @@ function ProviderLanding() {
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [busy, setBusy] = useState(true);
+  const loadedForUidRef = useRef<string | null>(null);
+  const redirectedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
+    if (!user) {
+      if (redirectedRef.current === "anon") return;
+      redirectedRef.current = "anon";
+      navigate({ to: "/auth/provider", search: { mode: "login" } });
+      return;
+    }
+    if (loadedForUidRef.current === user.id) return;
+    loadedForUidRef.current = user.id;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user?.id]);
