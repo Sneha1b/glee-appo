@@ -100,8 +100,12 @@ export async function computeSlots(opts: {
     const busy = busyByStaff[staff.id] ?? [];
 
     for (const w of windows) {
-      const winStart = addMinutes(dayStart, w.start_minute);
-      const winEnd = addMinutes(dayStart, w.end_minute);
+      // Intersect staff window with store hours (if configured)
+      const effStart = storeHours ? Math.max(w.start_minute, storeHours.open_minute) : w.start_minute;
+      const effEnd = storeHours ? Math.min(w.end_minute, storeHours.close_minute) : w.end_minute;
+      if (effEnd <= effStart) continue;
+      const winStart = addMinutes(dayStart, effStart);
+      const winEnd = addMinutes(dayStart, effEnd);
       for (
         let t = winStart.getTime();
         t + durationMin * 60_000 <= winEnd.getTime();
