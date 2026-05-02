@@ -474,7 +474,61 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      active_slot_locks: {
+        Row: {
+          end_at: string | null
+          expires_at: string | null
+          staff_id: string | null
+          start_at: string | null
+        }
+        Insert: {
+          end_at?: string | null
+          expires_at?: string | null
+          staff_id?: string | null
+          start_at?: string | null
+        }
+        Update: {
+          end_at?: string | null
+          expires_at?: string | null
+          staff_id?: string | null
+          start_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slot_locks_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booked_slots: {
+        Row: {
+          end_at: string | null
+          staff_id: string | null
+          start_at: string | null
+        }
+        Insert: {
+          end_at?: string | null
+          staff_id?: string | null
+          start_at?: string | null
+        }
+        Update: {
+          end_at?: string | null
+          staff_id?: string | null
+          start_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       acquire_slot_lock: {
