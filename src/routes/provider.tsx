@@ -71,6 +71,9 @@ function ProviderLanding() {
             Schedora
           </Link>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/profile"><User className="size-4" /> Profile</Link>
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => signOut().then(() => navigate({ to: "/" }))}>
               <LogOut className="size-4" /> Sign out
             </Button>
