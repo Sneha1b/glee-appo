@@ -67,18 +67,28 @@ function PayPage() {
       });
   }, [bookingId]);
 
-  function pay(e: React.FormEvent) {
+  async function pay(e: React.FormEvent) {
     e.preventDefault();
-    if (!card.name || card.number.replace(/\s/g, "").length < 12 || card.expiry.length < 5 || card.cvc.length < 3) {
-      toast.error("Please complete all card details (this is a mock — no charge).");
-      return;
-    }
     setPaying(true);
-    setTimeout(() => {
-      setPaying(false);
+    try {
+      // Fetch booking confirmation via API endpoint (no field validation — mock checkout).
+      const res = await fetch(`/api/booking/${bookingId}`, { method: "POST" });
+      const json: any = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        toast.error(json?.error ?? "Could not finalize booking. Please try again.");
+        return;
+      }
       setPaid(true);
-      toast.success("Payment successful (mock). Confirmation email & calendar invite sent.");
-    }, 900);
+      if (json?.emailStatus === "sent") {
+        toast.success("Payment successful (mock). Confirmation email sent.");
+      } else {
+        toast.success("Payment successful (mock). Your booking is confirmed.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Something went wrong");
+    } finally {
+      setPaying(false);
+    }
   }
 
   if (loading) return <div className="p-12 text-center text-muted-foreground">Loading your booking…</div>;
