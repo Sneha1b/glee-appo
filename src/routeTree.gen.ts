@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/provider.index'
@@ -27,6 +28,11 @@ import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.
 import { Route as ApiBookingBookingIdRouteImport } from './routes/api/booking.$bookingId'
 import { Route as AdminsAdminIdBookingsBookingIdRouteImport } from './routes/admins.$adminId.bookings.$bookingId'
 
+const ReservationsRoute = ReservationsRouteImport.update({
+  id: '/reservations',
+  path: '/reservations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -117,6 +123,7 @@ const AdminsAdminIdBookingsBookingIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
+  '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -136,6 +143,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
+  '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
+  '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/profile'
+    | '/reservations'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/profile'
+    | '/reservations'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/profile'
+    | '/reservations'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -235,6 +247,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProfileRoute: typeof ProfileRoute
+  ReservationsRoute: typeof ReservationsRoute
   AdminsAdminIdRoute: typeof AdminsAdminIdRouteWithChildren
   AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
@@ -250,6 +263,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reservations': {
+      id: '/reservations'
+      path: '/reservations'
+      fullPath: '/reservations'
+      preLoaderRoute: typeof ReservationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -413,6 +433,7 @@ const AuthProviderRouteWithChildren = AuthProviderRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProfileRoute: ProfileRoute,
+  ReservationsRoute: ReservationsRoute,
   AdminsAdminIdRoute: AdminsAdminIdRouteWithChildren,
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthProviderRoute: AuthProviderRouteWithChildren,
