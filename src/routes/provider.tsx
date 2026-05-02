@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, Building2, MapPin, LogOut } from "lucide-react";
+import { Plus, Building2, MapPin, LogOut, User } from "lucide-react";
 
 export const Route = createFileRoute("/provider")({
   component: ProviderLanding,
