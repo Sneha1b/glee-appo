@@ -25,6 +25,48 @@ export const Route = createFileRoute("/admins/$adminId")({
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function downloadInvoicePdf(r: any) {
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const left = 56;
+  let y = 64;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+  doc.text("INVOICE", left, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+  doc.text(`#${r.invoice_number}`, left, y + 18);
+  doc.text(`Issued: ${new Date(r.issued_at).toLocaleDateString()}`, left, y + 32);
+
+  y = 130;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text("Bill to", left, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+  doc.text(r.customer_name ?? "", left, y + 16);
+  doc.text(r.customer_email ?? "", left, y + 30);
+  if (r.customer_phone) doc.text(r.customer_phone, left, y + 44);
+
+  y = 210;
+  doc.setDrawColor(220); doc.line(left, y, 540, y);
+  y += 22;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+  doc.text("Service", left, y); doc.text("Staff", 290, y); doc.text("When", 380, y);
+  doc.text("Amount", 540, y, { align: "right" });
+  y += 8; doc.line(left, y, 540, y); y += 18;
+  doc.setFont("helvetica", "normal");
+  doc.text(String(r.service_name ?? ""), left, y);
+  doc.text(String(r.staff_name ?? "—"), 290, y);
+  doc.text(new Date(r.appointment_at).toLocaleString(), 380, y);
+  doc.text(`${r.currency} ${Number(r.amount).toFixed(2)}`, 540, y, { align: "right" });
+  y += 30; doc.line(left, y, 540, y);
+
+  y += 24; doc.setFont("helvetica", "bold");
+  doc.text("Total", 380, y);
+  doc.text(`${r.currency} ${Number(r.total).toFixed(2)}`, 540, y, { align: "right" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(120);
+  doc.text("Status: " + (r.status ?? "issued"), left, y);
+
+  doc.setTextColor(150);
+  doc.text("Powered by Schedora", left, 740);
+  doc.save(`${r.invoice_number}.pdf`);
+}
+
 function Admin() {
   const { adminId } = useParams({ from: "/admins/$adminId" });
   const { user, loading, businessId, role, signOut } = useAuth();
