@@ -99,6 +99,23 @@ function ProviderLanding() {
           </Button>
         </div>
 
+        {!busy && !profileComplete && (
+          <Card className="mb-6 border-dashed bg-muted/40">
+            <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <User className="size-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Complete your profile</p>
+                  <p className="text-sm text-muted-foreground">Add your name and phone so customers and your team can reach you.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/profile">Complete profile</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {busy ? (
           <div className="text-center text-muted-foreground py-20">Loading…</div>
         ) : businesses.length === 0 ? (
