@@ -72,7 +72,16 @@ function ProfilePage() {
       if (error) throw error;
       await refresh();
       toast.success("Profile saved");
-      navigate({ to: "/businesses" });
+      const { data: bizes } = await supabase
+        .from("businesses")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(2);
+      if (bizes && bizes.length === 1) {
+        navigate({ to: "/businesses/$businessId", params: { businessId: bizes[0].id } });
+      } else {
+        navigate({ to: "/businesses" });
+      }
     } catch (err: any) {
       toast.error(err.message);
     } finally {
