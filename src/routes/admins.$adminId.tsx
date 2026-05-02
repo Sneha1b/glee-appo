@@ -306,11 +306,12 @@ function ServicesTab({ businessId }: { businessId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const empty = { name: "", duration_min: 30, price: 0, description: "", category_id: "", available_from: "" };
   const [form, setForm] = useState<any>(empty);
+  const [newCat, setNewCat] = useState("");
 
   async function load() {
     const [s, c] = await Promise.all([
       supabase.from("services").select("*, category:category_id(name)").eq("business_id", businessId).order("name"),
-      supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order"),
+      supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order").order("name"),
     ]);
     setServices(s.data ?? []);
     setCats(c.data ?? []);
@@ -355,6 +356,31 @@ function ServicesTab({ businessId }: { businessId: string }) {
   }
   async function activate(id: string) {
     await supabase.from("services").update({ active: true }).eq("id", id);
+    load();
+  }
+
+  async function addCategory() {
+    const name = newCat.trim();
+    if (!name) return;
+    if (cats.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      toast.error("Category already exists");
+      return;
+    }
+    const { error } = await supabase.from("service_categories").insert({
+      business_id: businessId, name, sort_order: cats.length,
+    });
+    if (error) return toast.error(error.message);
+    setNewCat("");
+    toast.success("Category added");
+    load();
+  }
+  async function removeCategory(id: string) {
+    if (services.some((s) => s.category_id === id)) {
+      toast.error("Category is in use — reassign those services first.");
+      return;
+    }
+    const { error } = await supabase.from("service_categories").delete().eq("id", id);
+    if (error) return toast.error(error.message);
     load();
   }
 
