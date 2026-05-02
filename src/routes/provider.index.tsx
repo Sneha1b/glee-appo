@@ -22,7 +22,7 @@ type Biz = {
 };
 
 function ProviderLanding() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, refresh } = useAuth();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [busy, setBusy] = useState(true);
