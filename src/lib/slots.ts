@@ -153,6 +153,11 @@ export async function confirmBooking(args: {
     p_phone: args.phone ?? "",
   });
   if (error) throw error;
+  // Fire-and-forget: send confirmation email + ICS + create invoice
+  if (data && (data as any).id) {
+    supabase.functions.invoke("booking-confirmation", { body: { bookingId: (data as any).id } })
+      .catch((e) => console.warn("booking-confirmation failed", e));
+  }
   return data;
 }
 
