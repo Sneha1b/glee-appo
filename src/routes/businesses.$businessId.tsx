@@ -213,6 +213,37 @@ function BusinessPage() {
           );
         })}
       </main>
+
+      <Dialog open={!!authPromptServiceId} onOpenChange={(open) => { if (!open) setAuthPromptServiceId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign in to book</DialogTitle>
+            <DialogDescription>
+              Create an account or sign in to keep track of your bookings — or continue as a guest.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 pt-2">
+            <Button asChild>
+              <Link to="/auth/customer" search={{ mode: "signup" }}>Sign up</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/auth/customer" search={{ mode: "login" }}>Sign in</Link>
+            </Button>
+          </div>
+          <DialogFooter className="sm:justify-center pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                const id = authPromptServiceId;
+                setAuthPromptServiceId(null);
+                if (id) navigate({ to: "/book/$serviceId", params: { serviceId: id } });
+              }}
+            >
+              Continue as guest
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
