@@ -43,18 +43,10 @@ function CustomerAuth() {
     await supabase.rpc("assign_my_role", { p_role: "customer" });
   }
 
-  async function routeAfterAuth(uid: string) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("first_name, last_name, phone")
-      .eq("user_id", uid)
-      .maybeSingle() as any;
-    const complete = cp && cp.first_name && cp.last_name && cp.phone;
-    if (!complete) {
-      navigate({ to: "/auth/customer/profile" });
-      return;
-    }
-    // If exactly one business exists, send the customer straight to it; otherwise show directory.
+  async function routeAfterAuth(_uid: string) {
+    // Send the customer straight to the single business when there's only one;
+    // otherwise to the directory. Profile completion is optional and can be
+    // edited later from the booking flow.
     const { data: bizes } = await supabase
       .from("businesses")
       .select("id")

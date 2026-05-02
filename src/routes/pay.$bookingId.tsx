@@ -52,6 +52,7 @@ function PayPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [card, setCard] = useState({
     name: "", number: "", expiry: "", cvc: "",
     addr1: "", city: "", region: "", zip: "",
@@ -67,18 +68,29 @@ function PayPage() {
       });
   }, [bookingId]);
 
-  function pay(e: React.FormEvent) {
+  async function pay(e: React.FormEvent) {
     e.preventDefault();
-    if (!card.name || card.number.replace(/\s/g, "").length < 12 || card.expiry.length < 5 || card.cvc.length < 3) {
-      toast.error("Please complete all card details (this is a mock — no charge).");
-      return;
-    }
     setPaying(true);
-    setTimeout(() => {
-      setPaying(false);
+    try {
+      // Fetch booking confirmation via API endpoint (no field validation — mock checkout).
+      const res = await fetch(`/api/booking/${bookingId}`, { method: "POST" });
+      const json: any = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        toast.error(json?.error ?? "Could not finalize booking. Please try again.");
+        return;
+      }
       setPaid(true);
-      toast.success("Payment successful (mock). Confirmation email & calendar invite sent.");
-    }, 900);
+      setEmailSent(json?.emailStatus === "sent");
+      if (json?.emailStatus === "sent") {
+        toast.success("Payment successful (mock). Confirmation email sent.");
+      } else {
+        toast.success("Payment successful (mock). Your booking is confirmed.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Something went wrong");
+    } finally {
+      setPaying(false);
+    }
   }
 
   if (loading) return <div className="p-12 text-center text-muted-foreground">Loading your booking…</div>;
@@ -135,9 +147,15 @@ function PayPage() {
               )}
             </CardContent>
           </Card>
-          <p className="mt-6 text-sm text-muted-foreground">
-            We've emailed a confirmation with a calendar invite to <b>{booking.customer_email}</b>.
-          </p>
+          {emailSent ? (
+            <p className="mt-6 text-sm text-muted-foreground">
+              We've emailed a confirmation with a calendar invite to <b>{booking.customer_email}</b>.
+            </p>
+          ) : (
+            <p className="mt-6 text-sm text-muted-foreground">
+              Save this page or take a screenshot — we'll show your booking details here.
+            </p>
+          )}
           <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button onClick={() => navigate({ to: "/businesses" })} variant="outline">Browse more businesses</Button>
             <Button onClick={() => navigate({ to: "/" })} className="bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white">Back to home</Button>
@@ -218,24 +236,24 @@ function PayPage() {
                 <div>
                   <Label htmlFor="cn">Name on card</Label>
                   <Input id="cn" autoComplete="cc-name" value={card.name}
-                    onChange={(e) => setCard({ ...card, name: e.target.value })} required />
+                    onChange={(e) => setCard({ ...card, name: e.target.value })} />
                 </div>
                 <div>
                   <Label htmlFor="ccnum">Card number</Label>
                   <Input id="ccnum" inputMode="numeric" autoComplete="cc-number" placeholder="4242 4242 4242 4242"
                     value={card.number}
-                    onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value) })} required />
+                    onChange={(e) => setCard({ ...card, number: formatCardNumber(e.target.value) })} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="exp">Expiry</Label>
                     <Input id="exp" placeholder="MM/YY" value={card.expiry}
-                      onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })} required />
+                      onChange={(e) => setCard({ ...card, expiry: formatExpiry(e.target.value) })} />
                   </div>
                   <div>
                     <Label htmlFor="cvc">CVC</Label>
                     <Input id="cvc" inputMode="numeric" placeholder="123" maxLength={4} value={card.cvc}
-                      onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, "") })} required />
+                      onChange={(e) => setCard({ ...card, cvc: e.target.value.replace(/\D/g, "") })} />
                   </div>
                 </div>
 
