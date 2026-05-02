@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -22,10 +22,17 @@ export const Route = createFileRoute("/auth/provider")({
 function ProviderAuth() {
   const { mode = "login" } = useSearch({ from: "/auth/provider" });
   const navigate = useNavigate();
-  const { refresh } = useAuth();
+  const { refresh, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // If user lands here already authenticated (e.g. returning from Google OAuth), route them.
+  useEffect(() => {
+    if (authLoading) return;
+    if (user) { void postAuth(user.id); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   async function ensureRole(_uid: string) {
     await supabase.rpc("assign_my_role", { p_role: "provider" });
@@ -66,7 +73,7 @@ function ProviderAuth() {
   async function google() {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/provider/business` });
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/provider` });
       if (result.error) { toast.error(result.error.message); return; }
       if (result.redirected) return;
       const { data: { user } } = await supabase.auth.getUser();
