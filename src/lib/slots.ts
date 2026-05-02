@@ -1,5 +1,7 @@
 // Slot computation (FR-4): availability − bookings − blocks, in service-duration increments.
-// Runs client-side against the publishable Supabase client.
+// NOTE: Final correctness (overlap, lock validity, past-time) is enforced server-side in
+// public.acquire_slot_lock and public.confirm_booking. The client-side computation is only
+// for UI display; the server is authoritative.
 import { supabase } from "@/integrations/supabase/client";
 
 export type Slot = {
@@ -15,18 +17,42 @@ function addMinutes(d: Date, m: number) {
   return new Date(d.getTime() + m * 60_000);
 }
 
+// Compute the UTC instant for `localDate` at `minutesSinceMidnight` in the given IANA timezone.
+// Uses Intl to discover the offset that timezone has at that wall-clock moment.
+function zonedWallTimeToUtc(localDate: Date, minutesSinceMidnight: number, timeZone: string): Date {
+  const y = localDate.getFullYear();
+  const m = localDate.getMonth();
+  const d = localDate.getDate();
+  const hh = Math.floor(minutesSinceMidnight / 60);
+  const mm = minutesSinceMidnight % 60;
+  // Naive UTC guess for that wall clock
+  const guessUtcMs = Date.UTC(y, m, d, hh, mm, 0);
+  // Find what wall clock that UTC instant prints at in target tz
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date(guessUtcMs));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const asUtcOfRendered = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+  const offsetMs = asUtcOfRendered - guessUtcMs; // tz offset at that instant
+  return new Date(guessUtcMs - offsetMs);
+}
+
+// Weekday (0=Sun..6=Sat) for `date` interpreted in `timeZone`.
+function weekdayInTz(date: Date, timeZone: string): number {
+  const wk = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(date);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wk);
+}
+
 export async function computeSlots(opts: {
   serviceId: string;
   durationMin: number;
-  date: Date; // local date (we treat as business-local; v1 uses UTC-equivalent)
+  date: Date; // local-picked calendar date; interpreted in business timezone
   staffIdFilter?: string | null;
 }): Promise<Slot[]> {
   const { serviceId, durationMin, date, staffIdFilter } = opts;
-
-  // Day window in UTC (PRD §5: store UTC; v1 demo treats local==UTC)
-  const dayStart = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0));
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60_000);
-  const weekday = dayStart.getUTCDay(); // 0=Sun..6=Sat
 
   // Eligible staff = those who perform this service
   const { data: ss, error: e1 } = await supabase
@@ -41,8 +67,21 @@ export async function computeSlots(opts: {
   const staffIds = staffList.map((s) => s.id);
   const businessId = staffList[0].business_id;
 
-  // Check store-level closure first — if today is closed, no slots.
-  const dateStr = `${dayStart.getUTCFullYear()}-${String(dayStart.getUTCMonth() + 1).padStart(2, "0")}-${String(dayStart.getUTCDate()).padStart(2, "0")}`;
+  // Resolve business timezone (default UTC)
+  const { data: bz } = await supabase
+    .from("businesses")
+    .select("timezone")
+    .eq("id", businessId)
+    .maybeSingle();
+  const tz = bz?.timezone || "UTC";
+
+  // Day window in business-local time → convert to UTC instants
+  const dayStart = zonedWallTimeToUtc(date, 0, tz);
+  const dayEnd = zonedWallTimeToUtc(date, 24 * 60, tz);
+  const weekday = weekdayInTz(dayStart, tz);
+
+  // Closure check: compare against the business-local date string
+  const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   const { data: closures } = await supabase
     .from("business_closures")
     .select("from_date,to_date")
@@ -51,7 +90,6 @@ export async function computeSlots(opts: {
     .gte("to_date", dateStr);
   if ((closures?.length ?? 0) > 0) return [];
 
-  // Store hours for this weekday (if configured) constrain everything
   const { data: storeHours } = await supabase
     .from("business_hours")
     .select("open_minute,close_minute")
@@ -92,6 +130,7 @@ export async function computeSlots(opts: {
   blRes.data?.forEach((r) => pushBusy(r.staff_id, r.start_at, r.end_at));
   lkRes.data?.forEach((r) => pushBusy(r.staff_id, r.start_at, r.end_at));
 
+  // Past-slot filter is best-effort UI only; server re-validates.
   const now = Date.now();
   const out: Slot[] = [];
 
@@ -100,15 +139,15 @@ export async function computeSlots(opts: {
     const busy = busyByStaff[staff.id] ?? [];
 
     for (const w of windows) {
-      // Intersect staff window with store hours (if configured)
       const effStart = storeHours ? Math.max(w.start_minute, storeHours.open_minute) : w.start_minute;
       const effEnd = storeHours ? Math.min(w.end_minute, storeHours.close_minute) : w.end_minute;
       if (effEnd <= effStart) continue;
-      const winStart = addMinutes(dayStart, effStart);
-      const winEnd = addMinutes(dayStart, effEnd);
+      // Convert window edges from business-local minutes → UTC instants
+      const winStartMs = zonedWallTimeToUtc(date, effStart, tz).getTime();
+      const winEndMs = zonedWallTimeToUtc(date, effEnd, tz).getTime();
       for (
-        let t = winStart.getTime();
-        t + durationMin * 60_000 <= winEnd.getTime();
+        let t = winStartMs;
+        t + durationMin * 60_000 <= winEndMs;
         t += SLOT_STEP_MIN * 60_000
       ) {
         const slotEnd = t + durationMin * 60_000;
@@ -129,6 +168,17 @@ export async function computeSlots(opts: {
   return out;
 }
 
+// Friendly mapper for server-side validation errors
+function mapBookingError(message: string): string {
+  const m = (message || "").toLowerCase();
+  if (m.includes("slot_in_past")) return "That time has already passed. Please pick another slot.";
+  if (m.includes("already_booked")) return "That slot was just booked by someone else. Please pick another.";
+  if (m.includes("slot_locked")) return "Someone else is currently booking that slot. Please pick another.";
+  if (m.includes("lock_invalid")) return "Your hold expired. Please pick the slot again.";
+  if (m.includes("service_not_found")) return "Service not found.";
+  return message || "Something went wrong.";
+}
+
 // FR-5
 export async function acquireLock(args: {
   holder: string;
@@ -144,7 +194,7 @@ export async function acquireLock(args: {
     p_start: args.startAt,
     p_end: args.endAt,
   });
-  if (error) throw error;
+  if (error) throw new Error(mapBookingError(error.message));
   return data as { id: string; expires_at: string } | null;
 }
 
@@ -176,11 +226,18 @@ export async function confirmBooking(args: {
     p_email: args.email,
     p_phone: args.phone ?? "",
   });
-  if (error) throw error;
-  // Fire-and-forget: send confirmation email + ICS + create invoice
+  if (error) throw new Error(mapBookingError(error.message));
+
+  // Await confirmation/invoice; surface failures (booking still succeeded).
   if (data && (data as any).id) {
-    supabase.functions.invoke("booking-confirmation", { body: { bookingId: (data as any).id } })
-      .catch((e) => console.warn("booking-confirmation failed", e));
+    try {
+      const { error: fnErr } = await supabase.functions.invoke("booking-confirmation", {
+        body: { bookingId: (data as any).id },
+      });
+      if (fnErr) console.warn("booking-confirmation failed", fnErr);
+    } catch (e) {
+      console.warn("booking-confirmation invoke threw", e);
+    }
   }
   return data;
 }
