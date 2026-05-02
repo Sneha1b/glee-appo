@@ -58,7 +58,7 @@ function BusinessPage() {
       const [b, c, s] = await Promise.all([
         supabase.from("businesses").select("*").eq("id", businessId).maybeSingle(),
         supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order"),
-        supabase.from("services").select("*").eq("business_id", businessId).eq("active", true),
+        supabase.from("services").select("*").eq("business_id", businessId).eq("active", true).or(`available_from.is.null,available_from.lte.${new Date().toISOString()}`),
       ]);
       setBiz(b.data as Business | null);
       setCats((c.data as Category[]) ?? []);
