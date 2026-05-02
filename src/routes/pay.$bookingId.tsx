@@ -80,6 +80,7 @@ function PayPage() {
         return;
       }
       setPaid(true);
+      setEmailSent(json?.emailStatus === "sent");
       if (json?.emailStatus === "sent") {
         toast.success("Payment successful (mock). Confirmation email sent.");
       } else {
