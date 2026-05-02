@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, Building2, MapPin, LogOut } from "lucide-react";
+import { Plus, Building2, MapPin, LogOut, User } from "lucide-react";
 
 export const Route = createFileRoute("/provider")({
   component: ProviderLanding,
@@ -71,6 +71,9 @@ function ProviderLanding() {
             Schedora
           </Link>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/profile"><User className="size-4" /> Profile</Link>
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => signOut().then(() => navigate({ to: "/" }))}>
               <LogOut className="size-4" /> Sign out
             </Button>
