@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 import { Clock, MapPin, Phone, Calendar as CalIcon, Settings, LogOut, User, ArrowLeft } from "lucide-react";
 
@@ -52,6 +55,13 @@ function BusinessPage() {
   const [cats, setCats] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authPromptServiceId, setAuthPromptServiceId] = useState<string | null>(null);
+
+  function handleBookClick(serviceId: string, e: React.MouseEvent) {
+    if (user) return; // already signed in — let the Link navigate normally
+    e.preventDefault();
+    setAuthPromptServiceId(serviceId);
+  }
 
   useEffect(() => {
     (async () => {
@@ -187,7 +197,11 @@ function BusinessPage() {
                         <Clock className="size-4" /> {s.duration_min} min
                       </span>
                       <Button asChild size="sm">
-                        <Link to="/book/$serviceId" params={{ serviceId: s.id }}>
+                        <Link
+                          to="/book/$serviceId"
+                          params={{ serviceId: s.id }}
+                          onClick={(e) => handleBookClick(s.id, e)}
+                        >
                           <CalIcon /> Book
                         </Link>
                       </Button>
@@ -199,6 +213,37 @@ function BusinessPage() {
           );
         })}
       </main>
+
+      <Dialog open={!!authPromptServiceId} onOpenChange={(open) => { if (!open) setAuthPromptServiceId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign in to book</DialogTitle>
+            <DialogDescription>
+              Create an account or sign in to keep track of your bookings — or continue as a guest.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 pt-2">
+            <Button asChild>
+              <Link to="/auth/customer" search={{ mode: "signup" }}>Sign up</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/auth/customer" search={{ mode: "login" }}>Sign in</Link>
+            </Button>
+          </div>
+          <DialogFooter className="sm:justify-center pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                const id = authPromptServiceId;
+                setAuthPromptServiceId(null);
+                if (id) navigate({ to: "/book/$serviceId", params: { serviceId: id } });
+              }}
+            >
+              Continue as guest
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
