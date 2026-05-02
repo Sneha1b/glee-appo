@@ -80,50 +80,163 @@ function Admin() {
   );
 }
 
-function BookingsTab() {
+function BookingsTab({ businessId, adminId }: { businessId: string; adminId: string }) {
+  const [view, setView] = useState<"calendar" | "list">("calendar");
   const [rows, setRows] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [filters, setFilters] = useState({
+    from: new Date(today.getTime() - 7 * 86400000).toISOString().slice(0, 10),
+    to: new Date(today.getTime() + 30 * 86400000).toISOString().slice(0, 10),
+    staff_id: "all",
+    service_id: "all",
+  });
+  const [calMonth, setCalMonth] = useState<Date>(today);
+
   async function load() {
-    const { data } = await supabase
+    let q = supabase
       .from("bookings")
       .select("*, service:service_id(name), staff:staff_id(name)")
-      .gte("start_at", new Date(Date.now() - 7 * 86400000).toISOString())
+      .eq("business_id", businessId)
       .order("start_at");
+    if (filters.from) q = q.gte("start_at", new Date(filters.from).toISOString());
+    if (filters.to) q = q.lte("start_at", new Date(filters.to + "T23:59:59").toISOString());
+    if (filters.staff_id !== "all") q = q.eq("staff_id", filters.staff_id);
+    if (filters.service_id !== "all") q = q.eq("service_id", filters.service_id);
+    const { data } = await q;
     setRows(data ?? []);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    Promise.all([
+      supabase.from("staff").select("id,name").eq("business_id", businessId).order("name"),
+      supabase.from("services").select("id,name").eq("business_id", businessId).order("name"),
+    ]).then(([s, sv]) => { setStaff(s.data ?? []); setServices(sv.data ?? []); });
+  }, [businessId]);
+  useEffect(() => { load(); }, [businessId, filters]);
 
-  async function cancel(id: string) {
-    await supabase.from("bookings").delete().eq("id", id);
-    toast.success("Booking cancelled");
-    load();
-  }
+  // Group bookings by yyyy-mm-dd for calendar
+  const byDay = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const b of rows) {
+      const d = new Date(b.start_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(b);
+    }
+    return m;
+  }, [rows]);
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle className="text-base">Upcoming bookings</CardTitle>
-        <CardDescription>Showing the past week and forward.</CardDescription>
+        <CardTitle className="text-base">Bookings</CardTitle>
+        <CardDescription>Click any booking to view details, reschedule or cancel.</CardDescription>
       </CardHeader>
-      <CardContent>
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No bookings yet.</p>
-        ) : (
-          <ul className="divide-y">
-            {rows.map((b) => (
-              <li key={b.id} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="font-medium">{b.customer_name} · {b.service?.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {fmtDateTime(b.start_at)} · {b.staff?.name} · {b.customer_email}
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => cancel(b.id)}>
-                  <Trash2 />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div><Label className="text-xs">From</Label><Input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} /></div>
+          <div><Label className="text-xs">To</Label><Input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} /></div>
+          <div>
+            <Label className="text-xs">Staff</Label>
+            <Select value={filters.staff_id} onValueChange={(v) => setFilters({ ...filters, staff_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All staff</SelectItem>
+                {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Service</Label>
+            <Select value={filters.service_id} onValueChange={(v) => setFilters({ ...filters, service_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All services</SelectItem>
+                {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+          <TabsList>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="list">List ({rows.length})</TabsTrigger>
+          </TabsList>
+          <TabsContent value="calendar" className="mt-4">
+            <div className="grid gap-6 md:grid-cols-[auto_1fr]">
+              <Calendar
+                mode="single"
+                month={calMonth}
+                onMonthChange={setCalMonth}
+                modifiers={{ booked: (d) => byDay.has(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`) }}
+                modifiersClassNames={{ booked: "bg-primary/15 font-semibold text-primary rounded-md" }}
+                className="pointer-events-auto rounded-md border p-2"
+              />
+              <div className="space-y-3">
+                {[...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, items]) => (
+                  <div key={day}>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {new Date(day + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                    </p>
+                    <ul className="divide-y rounded-md border">
+                      {items.map((b) => (
+                        <li key={b.id}>
+                          <Link
+                            to="/admins/$adminId/bookings/$bookingId"
+                            params={{ adminId, bookingId: b.id }}
+                            className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {fmtTime(b.start_at)} · {b.service?.name}
+                                {b.status === "cancelled" && <Badge variant="destructive" className="ml-2">cancelled</Badge>}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{b.customer_name} · {b.staff?.name}</p>
+                            </div>
+                            <ChevronRight className="size-4 text-muted-foreground" />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {byDay.size === 0 && (
+                  <p className="text-sm text-muted-foreground">No bookings match these filters.</p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="list" className="mt-4">
+            {rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No bookings match these filters.</p>
+            ) : (
+              <ul className="divide-y rounded-md border">
+                {rows.map((b) => (
+                  <li key={b.id}>
+                    <Link
+                      to="/admins/$adminId/bookings/$bookingId"
+                      params={{ adminId, bookingId: b.id }}
+                      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-accent"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {b.customer_name} · {b.service?.name}
+                          {b.status === "cancelled" && <Badge variant="destructive" className="ml-2">cancelled</Badge>}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {fmtDateTime(b.start_at)} · {b.staff?.name} · {b.customer_email}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
