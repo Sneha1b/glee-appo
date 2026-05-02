@@ -841,8 +841,69 @@ function StoreTab({ businessId }: { businessId: string }) {
   }
 
   return (
-    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_360px]">
+    <div className="mt-4 space-y-4">
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Store className="size-4" /> Business profile
+          </CardTitle>
+          <CardDescription>
+            This is what customers see at the top of your booking page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-[120px_1fr]">
+            <div className="space-y-2">
+              <Label className="text-xs">Logo</Label>
+              <div className="size-24 overflow-hidden rounded-lg border bg-muted/40 grid place-items-center">
+                {profile.logo_url ? (
+                  <img src={profile.logo_url} alt="Logo" className="size-full object-cover" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <Input type="file" accept="image/*" onChange={uploadLogo} disabled={uploadingLogo} className="h-8 text-xs" />
+              {profile.logo_url && (
+                <Button
+                  variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                  onClick={() => setProfile((p) => ({ ...p, logo_url: null }))}
+                >
+                  Remove logo
+                </Button>
+              )}
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="biz-name" className="text-xs">Business name</Label>
+                <Input
+                  id="biz-name"
+                  value={profile.name}
+                  onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Glee Salon"
+                />
+              </div>
+              <div>
+                <Label htmlFor="biz-desc" className="text-xs">Description</Label>
+                <Textarea
+                  id="biz-desc"
+                  value={profile.description}
+                  onChange={(e) => setProfile((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Tell customers what makes your business special…"
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={saveProfile} disabled={savingProfile} className="gap-2">
+                  <Save className="size-4" /> {savingProfile ? "Saving…" : "Save profile"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-[1fr_360px]">
+        <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Store className="size-4" /> Store hours
