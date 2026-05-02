@@ -146,16 +146,21 @@ function computeSlotsFromData(opts: {
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-const FUTURE_DATE = new Date(Date.UTC(2099, 5, 15)); // 2099-06-15 — always in the future
-const FUTURE_WEEKDAY = 1; // Monday (2099-06-15 is a Monday)
+// Use local Date constructor so getFullYear/Month/Date are timezone-safe.
+// Date.UTC would give getDate()=14 in UTC-X timezones, mismatching the UTC busy times.
+const FUTURE_DATE = new Date(2099, 5, 15); // local midnight — June 15, 2099
+const FUTURE_WEEKDAY = FUTURE_DATE.getDay(); // derived, not hardcoded (= 1, Monday)
+// UTC instant for 09:00 / 17:00 on that same calendar date, used for busy/block times.
+const FUTURE_9AM_UTC = Date.UTC(2099, 5, 15, 9, 0);
+const FUTURE_5PM_UTC = Date.UTC(2099, 5, 15, 17, 0);
 
 const STAFF_ALICE: StaffDef = { id: "staff-alice", name: "Alice" };
 const STAFF_BOB: StaffDef = { id: "staff-bob", name: "Bob" };
 
-// Alice available Mon 09:00–17:00 (540–1020 minutes)
+// Alice available on FUTURE_WEEKDAY 09:00–17:00 (540–1020 minutes)
 const ALICE_MON_AVAIL: AvailabilityDef = {
   staff_id: "staff-alice",
-  weekday: 1,
+  weekday: FUTURE_WEEKDAY,
   start_minute: 540,
   end_minute: 1020,
 };
@@ -225,10 +230,11 @@ export const slotsIntegrationSuite: TestSuite = {
     {
       name: "returns empty array when staff has no availability on that weekday",
       fn() {
-        // Alice only available on Tuesday (weekday=2), but we query Monday (1)
+        // Give Alice availability on a different weekday than FUTURE_WEEKDAY
+        const wrongDay = (FUTURE_WEEKDAY + 1) % 7;
         const slots = computeSlotsFromData({
           staffList: [STAFF_ALICE],
-          availabilities: [{ ...ALICE_MON_AVAIL, weekday: 2 }],
+          availabilities: [{ ...ALICE_MON_AVAIL, weekday: wrongDay }],
           busy: [],
           storeHours: STORE_9_17,
           isClosed: false,
@@ -364,7 +370,7 @@ export const slotsIntegrationSuite: TestSuite = {
           staffList: [STAFF_ALICE, STAFF_BOB],
           availabilities: [
             ALICE_MON_AVAIL,
-            { staff_id: "staff-bob", weekday: 1, start_minute: 540, end_minute: 1020 },
+            { staff_id: "staff-bob", weekday: FUTURE_WEEKDAY, start_minute: 540, end_minute: 1020 },
           ],
           busy: [],
           storeHours: STORE_9_17,
@@ -447,16 +453,18 @@ export const slotsIntegrationSuite: TestSuite = {
     {
       name: "busy slot does not affect other staff members",
       fn() {
+        // Book Alice for the entire day (00:00–24:00 UTC) — wider than her work window,
+        // guaranteeing every slot she could generate is blocked.
         const aliceBusy: BusyDef = {
           staff_id: "staff-alice",
-          start_at: new Date(Date.UTC(2099, 5, 15, 9, 0)).toISOString(),
-          end_at: new Date(Date.UTC(2099, 5, 15, 17, 0)).toISOString(), // Alice booked all day
+          start_at: new Date(FUTURE_9AM_UTC - 9 * 3_600_000).toISOString(), // 00:00 UTC
+          end_at: new Date(FUTURE_5PM_UTC + 7 * 3_600_000).toISOString(),   // 24:00 UTC
         };
         const slots = computeSlotsFromData({
           staffList: [STAFF_ALICE, STAFF_BOB],
           availabilities: [
             ALICE_MON_AVAIL,
-            { staff_id: "staff-bob", weekday: 1, start_minute: 540, end_minute: 1020 },
+            { staff_id: "staff-bob", weekday: FUTURE_WEEKDAY, start_minute: 540, end_minute: 1020 },
           ],
           busy: [aliceBusy],
           storeHours: STORE_9_17,
@@ -479,7 +487,7 @@ export const slotsIntegrationSuite: TestSuite = {
         // Alice available 08:00–18:00 (480–1080), but store only 09:00–17:00
         const wideAvail: AvailabilityDef = {
           staff_id: "staff-alice",
-          weekday: 1,
+          weekday: FUTURE_WEEKDAY,
           start_minute: 480,
           end_minute: 1080,
         };
@@ -511,7 +519,7 @@ export const slotsIntegrationSuite: TestSuite = {
         // Store 09:00-17:00 but Alice only 10:00-12:00 (600-720)
         const narrowAvail: AvailabilityDef = {
           staff_id: "staff-alice",
-          weekday: 1,
+          weekday: FUTURE_WEEKDAY,
           start_minute: 600,
           end_minute: 720,
         };

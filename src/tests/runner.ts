@@ -98,6 +98,10 @@ export function expect<T>(actual: T) {
       if ((actual as number) < n)
         throw new AssertionError(`Expected ${actual} >= ${n}`);
     },
+    toBeLessThanOrEqual(n: number) {
+      if ((actual as number) > n)
+        throw new AssertionError(`Expected ${actual} <= ${n}`);
+    },
     toMatch(pattern: RegExp) {
       if (!pattern.test(actual as string))
         throw new AssertionError(`Expected "${actual}" to match ${pattern}`);
