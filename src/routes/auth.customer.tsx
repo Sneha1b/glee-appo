@@ -38,7 +38,7 @@ function CustomerAuth() {
       .eq("user_id", uid)
       .maybeSingle() as any;
     const complete = cp && cp.first_name && cp.last_name && cp.phone;
-    navigate({ to: complete ? "/" : "/auth/customer/profile" });
+    navigate({ to: complete ? "/businesses" : "/auth/customer/profile" });
   }
 
   async function submit(e: React.FormEvent) {
@@ -73,7 +73,7 @@ function CustomerAuth() {
   async function google() {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/customer/profile` });
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth/customer` });
       if (result.error) { toast.error(result.error.message); return; }
       if (result.redirected) return;
       const { data: { user } } = await supabase.auth.getUser();
