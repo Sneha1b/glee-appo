@@ -86,6 +86,8 @@ function PayPage() {
       } else {
         toast.success("Payment successful (mock). Your booking is confirmed.");
       }
+      // Auto-redirect to the customer's reservations page so they can see all upcoming bookings.
+      setTimeout(() => navigate({ to: "/reservations" }), 2500);
     } catch (err: any) {
       toast.error(err?.message ?? "Something went wrong");
     } finally {
@@ -158,7 +160,7 @@ function PayPage() {
           )}
           <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button onClick={() => navigate({ to: "/businesses" })} variant="outline">Browse more businesses</Button>
-            <Button onClick={() => navigate({ to: "/" })} className="bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white">Back to home</Button>
+            <Button onClick={() => navigate({ to: "/reservations" })} className="bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white">View my reservations</Button>
           </div>
         </div>
       </div>
