@@ -36,25 +36,12 @@ function ProviderAuth() {
     await supabase.rpc("assign_my_role", { p_role: "provider" });
   }
 
-  async function postAuth(uid: string) {
-    await ensureRole(uid);
+  async function postAuth(_uid: string) {
+    await ensureRole(_uid);
     await refresh();
-
-    // First-time providers fill out their personal profile.
-    const { data: pp } = await supabase
-      .from("provider_profiles" as any)
-      .select("first_name, last_name, phone")
-      .eq("user_id", uid)
-      .maybeSingle() as any;
-    const profileComplete = pp && pp.first_name && pp.last_name && pp.phone;
-    if (!profileComplete) {
-      navigate({ to: "/auth/provider/profile" });
-      return;
-    }
-
     // Auto-claim any pending co-manager invites for this email
     await supabase.rpc("accept_pending_business_invites" as any);
-    // Always land on provider hub — they pick a business or create one there
+    // Always land on provider hub; profile completion is handled there if needed
     navigate({ to: "/provider" });
   }
 
