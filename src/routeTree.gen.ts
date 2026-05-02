@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ProviderRouteImport } from './routes/provider'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BusinessesIndexRouteImport } from './routes/businesses.index'
 import { Route as PayBookingIdRouteImport } from './routes/pay.$bookingId'
@@ -23,6 +24,11 @@ import { Route as AuthCustomerProfileRouteImport } from './routes/auth.customer.
 import { Route as ApiBookingBookingIdRouteImport } from './routes/api/booking.$bookingId'
 import { Route as AdminsAdminIdBookingsBookingIdRouteImport } from './routes/admins.$adminId.bookings.$bookingId'
 
+const ProviderRoute = ProviderRouteImport.update({
+  id: '/provider',
+  path: '/provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -92,6 +98,7 @@ const AdminsAdminIdBookingsBookingIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/provider': typeof ProviderRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/provider': typeof ProviderRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/provider': typeof ProviderRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/provider'
     | '/admins/$adminId'
     | '/auth/customer'
     | '/auth/provider'
@@ -186,6 +198,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ProviderRoute: typeof ProviderRoute
   AdminsAdminIdRoute: typeof AdminsAdminIdRouteWithChildren
   AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
@@ -198,6 +211,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/provider': {
+      id: '/provider'
+      path: '/provider'
+      fullPath: '/provider'
+      preLoaderRoute: typeof ProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -332,6 +352,7 @@ const AuthProviderRouteWithChildren = AuthProviderRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ProviderRoute: ProviderRoute,
   AdminsAdminIdRoute: AdminsAdminIdRouteWithChildren,
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthProviderRoute: AuthProviderRouteWithChildren,
@@ -344,3 +365,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
