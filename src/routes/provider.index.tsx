@@ -48,7 +48,9 @@ function ProviderLanding() {
     setBusy(true);
     // Self-heal role: if this user landed here (has business ownership) but
     // their role is still "customer" from an earlier signup, promote them.
-    void Promise.resolve(supabase.rpc("assign_my_role", { p_role: "provider" })).catch(() => {});
+    void Promise.resolve(supabase.rpc("assign_my_role", { p_role: "provider" }))
+      .then(() => refresh())
+      .catch(() => {});
     // Run profile check + owner-link fetch in parallel. Invite acceptance runs
     // in the background — it almost never returns rows after first login and
     // shouldn't block the businesses grid from rendering.
