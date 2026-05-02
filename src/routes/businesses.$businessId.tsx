@@ -114,7 +114,7 @@ function BusinessPage() {
             )}
             {role === "provider" && (
               <Button variant="ghost" size="sm" asChild>
-                <Link to="/admin"><Settings /> Admin</Link>
+                <Link to="/auth/provider"><Settings /> Admin</Link>
               </Button>
             )}
           </div>
