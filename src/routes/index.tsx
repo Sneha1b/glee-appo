@@ -67,7 +67,7 @@ function Landing() {
               <>
                 {role === "provider" ? (
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to="/admin"><Settings /> Dashboard</Link>
+                    <Link to="/auth/provider"><Settings /> Dashboard</Link>
                   </Button>
                 ) : (
                   <Button variant="ghost" size="sm" asChild>
