@@ -52,16 +52,10 @@ function ProviderAuth() {
       return;
     }
 
-    const { data: bo } = await supabase
-      .from("business_owners")
-      .select("business_id")
-      .eq("user_id", uid)
-      .maybeSingle();
-    if (bo?.business_id) {
-      navigate({ to: "/admins/$adminId", params: { adminId: bo.business_id } });
-    } else {
-      navigate({ to: "/auth/provider/business" });
-    }
+    // Auto-claim any pending co-manager invites for this email
+    await supabase.rpc("accept_pending_business_invites" as any);
+    // Always land on provider hub — they pick a business or create one there
+    navigate({ to: "/provider" });
   }
 
   async function submit(e: React.FormEvent) {
