@@ -21,7 +21,7 @@ function ProfilePage() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -29,7 +29,6 @@ function ProfilePage() {
       navigate({ to: "/auth/customer", search: { mode: "login" } });
       return;
     }
-    // Load existing record (need first_name / last_name fields too)
     (async () => {
       const { data } = await supabase
         .from("customer_profiles")
@@ -42,10 +41,6 @@ function ProfilePage() {
         setFirstName(d.first_name ?? (d.full_name?.split(" ")[0] ?? ""));
         setLastName(d.last_name ?? (d.full_name?.split(" ").slice(1).join(" ") ?? ""));
         setPhone(d.phone ?? "");
-        // Profile already complete — bounce to services page on subsequent visits
-        if (d.first_name && d.last_name && !editMode) {
-          navigate({ to: "/" });
-        }
       } else {
         const meta = (user.user_metadata ?? {}) as any;
         const guess = (meta.full_name ?? meta.name ?? "").trim();
@@ -53,6 +48,7 @@ function ProfilePage() {
         setFirstName(f ?? "");
         setLastName(rest.join(" "));
       }
+      setLoaded(true);
     })();
   }, [loading, user]);
 
