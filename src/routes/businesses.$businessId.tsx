@@ -162,7 +162,6 @@ function BusinessPage() {
                 </div>
               </div>
             </div>
-          </div>
         </section>
 
         {cats.map((cat) => {
