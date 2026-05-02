@@ -134,7 +134,7 @@ function ProviderLanding() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {businesses.map((b) => (
-              <Link key={b.id} to="/businesses/$businessId" params={{ businessId: b.id }} className="group">
+              <Link key={b.id} to="/admins/$adminId" params={{ adminId: b.id }} className="group">
                 <Card className="overflow-hidden h-full transition hover:shadow-lg hover:-translate-y-0.5">
                   <div className="h-28 bg-gradient-to-br from-fuchsia-500/20 via-violet-500/20 to-indigo-500/20 relative">
                     {b.banner_url && <img src={b.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />}
