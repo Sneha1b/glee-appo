@@ -732,20 +732,58 @@ function BlocksTab() {
 }
 
 function StoreTab({ businessId }: { businessId: string }) {
+  const { user } = useAuth();
   const [hours, setHours] = useState<any[]>([]);
   const [closures, setClosures] = useState<any[]>([]);
   const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
   const [newClosure, setNewClosure] = useState({ from_date: "", to_date: "", reason: "" });
+  const [profile, setProfile] = useState<{ name: string; description: string; logo_url: string | null }>({
+    name: "", description: "", logo_url: null,
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   async function load() {
-    const [h, c] = await Promise.all([
+    const [h, c, b] = await Promise.all([
       supabase.from("business_hours").select("*").eq("business_id", businessId).order("weekday"),
       supabase.from("business_closures").select("*").eq("business_id", businessId).gte("to_date", new Date().toISOString().slice(0, 10)).order("from_date"),
+      supabase.from("businesses").select("name, description, logo_url").eq("id", businessId).maybeSingle(),
     ]);
     setHours(h.data ?? []);
     setClosures(c.data ?? []);
+    if (b.data) setProfile({ name: b.data.name ?? "", description: b.data.description ?? "", logo_url: b.data.logo_url ?? null });
   }
   useEffect(() => { load(); }, [businessId]);
+
+  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("business-images").upload(path, file, { upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from("business-images").getPublicUrl(path);
+      setProfile((p) => ({ ...p, logo_url: data.publicUrl }));
+      toast.success("Logo uploaded — don't forget to save");
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally { setUploadingLogo(false); }
+  }
+
+  async function saveProfile() {
+    if (!profile.name.trim()) { toast.error("Name is required"); return; }
+    setSavingProfile(true);
+    const { error } = await supabase.from("businesses").update({
+      name: profile.name.trim(),
+      description: profile.description.trim() || null,
+      logo_url: profile.logo_url,
+    }).eq("id", businessId);
+    setSavingProfile(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Business profile updated");
+  }
 
   async function runCleanup() {
     const { data, error } = await supabase.rpc("cancel_out_of_hours_bookings", { p_business_id: businessId });
