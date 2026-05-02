@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -12,18 +12,19 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ArrowLeft, Plus, LogOut } from "lucide-react";
+import { Trash2, ArrowLeft, Plus, LogOut, Save } from "lucide-react";
 import { fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin")({
+export const Route = createFileRoute("/admins/$adminId")({
   component: Admin,
-  head: () => ({ meta: [{ title: "Provider — SlotKit" }] }),
+  head: () => ({ meta: [{ title: "Provider — Schedora" }] }),
 });
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function Admin() {
+  const { adminId } = useParams({ from: "/admins/$adminId" });
   const { user, loading, businessId, role, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -32,17 +33,21 @@ function Admin() {
     if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     if (!businessId) { navigate({ to: "/auth/provider/business" }); return; }
-  }, [loading, user, businessId, role]);
+    // Force the URL to match the signed-in provider's own business
+    if (businessId !== adminId) {
+      navigate({ to: "/admins/$adminId", params: { adminId: businessId }, replace: true });
+    }
+  }, [loading, user, businessId, role, adminId]);
 
-  if (loading || !user || !businessId) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
-
+  if (loading || !user || !businessId || businessId !== adminId)
+    return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/"><ArrowLeft /> Customer view</Link>
+            <Link to="/"><ArrowLeft /> Back to site</Link>
           </Button>
           <h1 className="font-semibold">Provider dashboard</h1>
           <div className="ml-auto flex items-center gap-2">
@@ -127,7 +132,9 @@ function BookingsTab() {
 function ServicesTab({ businessId }: { businessId: string }) {
   const [services, setServices] = useState<any[]>([]);
   const [cats, setCats] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", duration_min: 30, price: 0, description: "", category_id: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const empty = { name: "", duration_min: 30, price: 0, description: "", category_id: "", available_from: "" };
+  const [form, setForm] = useState<any>(empty);
 
   async function load() {
     const [s, c] = await Promise.all([
@@ -139,19 +146,36 @@ function ServicesTab({ businessId }: { businessId: string }) {
   }
   useEffect(() => { load(); }, [businessId]);
 
-  async function add() {
+  function startEdit(s: any) {
+    setEditingId(s.id);
+    setForm({
+      name: s.name ?? "",
+      duration_min: s.duration_min ?? 30,
+      price: Number(s.price ?? 0),
+      description: s.description ?? "",
+      category_id: s.category_id ?? "",
+      available_from: s.available_from ? new Date(s.available_from).toISOString().slice(0, 10) : "",
+    });
+  }
+  function cancelEdit() { setEditingId(null); setForm(empty); }
+
+  async function save() {
     if (!form.name || !form.duration_min) return toast.error("Name and duration required");
-    const { error } = await supabase.from("services").insert({
+    const payload: any = {
       business_id: businessId,
       name: form.name,
       duration_min: form.duration_min,
       price: form.price,
       description: form.description || null,
       category_id: form.category_id || null,
-    });
+      available_from: form.available_from ? new Date(form.available_from).toISOString() : null,
+    };
+    const { error } = editingId
+      ? await supabase.from("services").update(payload).eq("id", editingId)
+      : await supabase.from("services").insert(payload);
     if (error) return toast.error(error.message);
-    setForm({ name: "", duration_min: 30, price: 0, description: "", category_id: "" });
-    toast.success("Service added");
+    toast.success(editingId ? "Service updated" : "Service added");
+    cancelEdit();
     load();
   }
   async function archive(id: string) {
@@ -168,29 +192,44 @@ function ServicesTab({ businessId }: { businessId: string }) {
       <Card>
         <CardHeader><CardTitle className="text-base">Services</CardTitle></CardHeader>
         <CardContent>
-          <ul className="divide-y">
-            {services.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="font-medium">
-                    {s.name} {!s.active && <Badge variant="secondary">archived</Badge>}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {s.category?.name ?? "Uncategorized"} · {s.duration_min} min · ${Number(s.price).toFixed(0)}
-                  </p>
-                </div>
-                {s.active ? (
-                  <Button variant="ghost" size="sm" onClick={() => archive(s.id)}>Archive</Button>
-                ) : (
-                  <Button variant="ghost" size="sm" onClick={() => activate(s.id)}>Activate</Button>
-                )}
-              </li>
-            ))}
-          </ul>
+          {services.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No services yet — add one on the right.</p>
+          ) : (
+            <ul className="divide-y">
+              {services.map((s) => {
+                const upcoming = s.available_from && new Date(s.available_from) > new Date();
+                return (
+                  <li key={s.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="font-medium">
+                        {s.name}{" "}
+                        {!s.active && <Badge variant="secondary">archived</Badge>}
+                        {upcoming && <Badge className="ml-1">launches {new Date(s.available_from).toLocaleDateString()}</Badge>}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {s.category?.name ?? "Uncategorized"} · {s.duration_min} min · ${Number(s.price).toFixed(0)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(s)}>Edit</Button>
+                      {s.active ? (
+                        <Button variant="ghost" size="sm" onClick={() => archive(s.id)}>Archive</Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" onClick={() => activate(s.id)}>Activate</Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle className="text-base">Add service</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{editingId ? "Edit service" : "Add service"}</CardTitle>
+          <CardDescription>Use the launch date for services that aren't bookable yet.</CardDescription>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
@@ -204,8 +243,22 @@ function ServicesTab({ businessId }: { businessId: string }) {
               <SelectContent>{cats.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Available from <span className="text-muted-foreground">(optional)</span></Label>
+            <Input
+              type="date"
+              value={form.available_from}
+              onChange={(e) => setForm({ ...form, available_from: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Hide from booking until this date.</p>
+          </div>
           <div><Label>Description</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-          <Button onClick={add} className="w-full"><Plus /> Add service</Button>
+          <div className="flex gap-2">
+            <Button onClick={save} className="flex-1">
+              {editingId ? <><Save /> Save changes</> : <><Plus /> Add service</>}
+            </Button>
+            {editingId && <Button variant="outline" onClick={cancelEdit}>Cancel</Button>}
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -215,7 +268,9 @@ function ServicesTab({ businessId }: { businessId: string }) {
 function StaffTab({ businessId }: { businessId: string }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "" });
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
 
   async function load() {
     const [st, sv] = await Promise.all([
@@ -224,20 +279,24 @@ function StaffTab({ businessId }: { businessId: string }) {
     ]);
     setStaff(st.data ?? []);
     setServices(sv.data ?? []);
+    if (!selectedId && st.data && st.data.length) setSelectedId(st.data[0].id);
   }
   useEffect(() => { load(); }, [businessId]);
 
-  async function add() {
-    if (!form.name) return toast.error("Name required");
-    const { error } = await supabase.from("staff").insert({
-      business_id: businessId, name: form.name,
-    });
+  const selected = useMemo(() => staff.find((s) => s.id === selectedId), [staff, selectedId]);
+
+  async function addStaff() {
+    if (!newName.trim()) return toast.error("Name required");
+    const { data, error } = await supabase.from("staff").insert({ business_id: businessId, name: newName.trim() }).select().single();
     if (error) return toast.error(error.message);
-    setForm({ name: "" });
+    setNewName("");
+    toast.success("Staff added");
+    if (data) setSelectedId(data.id);
     load();
   }
-  async function remove(id: string) {
+  async function removeStaff(id: string) {
     await supabase.from("staff").delete().eq("id", id);
+    setSelectedId("");
     load();
   }
   async function toggleService(staffId: string, serviceId: string, on: boolean) {
@@ -246,6 +305,15 @@ function StaffTab({ businessId }: { businessId: string }) {
     load();
   }
   async function setHours(staffId: string, weekday: number, startH: number, endH: number) {
+    if (Number.isNaN(startH) || Number.isNaN(endH) || startH < 0 || endH < 0 || startH > 24 || endH > 24) {
+      setHourErrors((m) => ({ ...m, [weekday]: "Hours must be between 0 and 24." }));
+      return;
+    }
+    if (endH !== 0 && endH <= startH) {
+      setHourErrors((m) => ({ ...m, [weekday]: "End hour must be greater than start hour." }));
+      return;
+    }
+    setHourErrors((m) => { const c = { ...m }; delete c[weekday]; return c; });
     await supabase.from("availabilities").delete().eq("staff_id", staffId).eq("weekday", weekday);
     if (endH > startH) {
       await supabase.from("availabilities").insert({
@@ -257,69 +325,94 @@ function StaffTab({ businessId }: { businessId: string }) {
 
   return (
     <div className="mt-4 grid gap-4 md:grid-cols-[1fr_320px]">
-      <div className="space-y-4">
-        {staff.map((s) => {
-          const svcIds = new Set(s.services.map((x: any) => x.service_id));
-          return (
-            <Card key={s.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Edit staff member</CardTitle>
+          <CardDescription>Pick a team member to manage their services and weekly hours.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {staff.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No staff yet — add one on the right.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <Select value={selectedId} onValueChange={setSelectedId}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select a staff member" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {selected && (
+                  <Button variant="ghost" size="icon" onClick={() => removeStaff(selected.id)} title="Remove staff">
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+              {selected && (
+                <>
                   <div>
-                    <CardTitle className="text-base">{s.name}</CardTitle>
+                    <Label className="text-xs uppercase tracking-wider">Services performed</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {services.map((svc) => {
+                        const on = new Set(selected.services.map((x: any) => x.service_id)).has(svc.id);
+                        return (
+                          <Button
+                            key={svc.id}
+                            size="sm"
+                            variant={on ? "default" : "outline"}
+                            onClick={() => toggleService(selected.id, svc.id, !on)}
+                          >
+                            {svc.name}
+                          </Button>
+                        );
+                      })}
+                      {services.length === 0 && <p className="text-sm text-muted-foreground">Add services first.</p>}
+                    </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => remove(s.id)}><Trash2 /></Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-xs uppercase tracking-wider">Services performed</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {services.map((svc) => {
-                      const on = svcIds.has(svc.id);
-                      return (
-                        <Button
-                          key={svc.id}
-                          size="sm"
-                          variant={on ? "default" : "outline"}
-                          onClick={() => toggleService(s.id, svc.id, !on)}
-                        >
-                          {svc.name}
-                        </Button>
-                      );
-                    })}
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider">Weekly hours</Label>
+                    <div className="mt-2 space-y-1.5">
+                      {WEEKDAYS.map((wd, i) => {
+                        const a = selected.avail.find((x: any) => x.weekday === i);
+                        const startH = a ? Math.floor(a.start_minute / 60) : 0;
+                        const endH = a ? Math.floor(a.end_minute / 60) : 0;
+                        return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="w-10 text-muted-foreground">{wd}</span>
+                              <Input
+                                type="number" min={0} max={24} className="h-8 w-20"
+                                defaultValue={startH}
+                                key={`s-${selected.id}-${i}-${a?.id ?? "x"}`}
+                                onBlur={(e) => setHours(selected.id, i, Number(e.target.value), endH || Number(e.target.value) + 8)}
+                              />
+                              <span className="text-muted-foreground">to</span>
+                              <Input
+                                type="number" min={0} max={24} className="h-8 w-20"
+                                defaultValue={endH}
+                                key={`e-${selected.id}-${i}-${a?.id ?? "x"}`}
+                                onBlur={(e) => setHours(selected.id, i, startH, Number(e.target.value))}
+                              />
+                            </div>
+                            {hourErrors[i] && (
+                              <p className="ml-12 text-xs text-destructive">{hourErrors[i]}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider">Weekly hours</Label>
-                  <div className="mt-2 space-y-1.5">
-                    {WEEKDAYS.map((wd, i) => {
-                      const a = s.avail.find((x: any) => x.weekday === i);
-                      const startH = a ? Math.floor(a.start_minute / 60) : 0;
-                      const endH = a ? Math.floor(a.end_minute / 60) : 0;
-                      return (
-                        <div key={i} className="flex items-center gap-2 text-sm">
-                          <span className="w-10 text-muted-foreground">{wd}</span>
-                          <Input type="number" min={0} max={24} className="h-8 w-20" defaultValue={startH}
-                            onBlur={(e) => setHours(s.id, i, Number(e.target.value), endH || Number(e.target.value) + 8)} />
-                          <span className="text-muted-foreground">to</span>
-                          <Input type="number" min={0} max={24} className="h-8 w-20" defaultValue={endH}
-                            onBlur={(e) => setHours(s.id, i, startH, Number(e.target.value))} />
-                          <span className="text-muted-foreground">(0 to 0 = off)</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader><CardTitle className="text-base">Add staff</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <Button onClick={add} className="w-full"><Plus /> Add staff</Button>
+          <div><Label>Name</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} /></div>
+          <Button onClick={addStaff} className="w-full"><Plus /> Add staff</Button>
         </CardContent>
       </Card>
     </div>

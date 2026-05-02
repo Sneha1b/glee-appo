@@ -21,7 +21,7 @@ function ProfilePage() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -29,7 +29,6 @@ function ProfilePage() {
       navigate({ to: "/auth/customer", search: { mode: "login" } });
       return;
     }
-    // Load existing record (need first_name / last_name fields too)
     (async () => {
       const { data } = await supabase
         .from("customer_profiles")
@@ -42,10 +41,6 @@ function ProfilePage() {
         setFirstName(d.first_name ?? (d.full_name?.split(" ")[0] ?? ""));
         setLastName(d.last_name ?? (d.full_name?.split(" ").slice(1).join(" ") ?? ""));
         setPhone(d.phone ?? "");
-        // Profile already complete — bounce to services page on subsequent visits
-        if (d.first_name && d.last_name && !editMode) {
-          navigate({ to: "/" });
-        }
       } else {
         const meta = (user.user_metadata ?? {}) as any;
         const guess = (meta.full_name ?? meta.name ?? "").trim();
@@ -53,6 +48,7 @@ function ProfilePage() {
         setFirstName(f ?? "");
         setLastName(rest.join(" "));
       }
+      setLoaded(true);
     })();
   }, [loading, user]);
 
@@ -84,7 +80,7 @@ function ProfilePage() {
     }
   }
 
-  if (loading) return <div className="p-12 text-center">Loading…</div>;
+  if (loading || !loaded) return <div className="p-12 text-center">Loading…</div>;
 
   return (
     <div className="min-h-screen grid place-items-center bg-background p-6">
@@ -94,13 +90,7 @@ function ProfilePage() {
           <CardDescription>Tell us your name and phone number to make booking faster.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={(e) => {
-              setEditMode(true);
-              save(e);
-            }}
-            className="space-y-3"
-          >
+          <form onSubmit={save} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label>First name</Label>

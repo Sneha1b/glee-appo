@@ -330,6 +330,7 @@ export type Database = {
       services: {
         Row: {
           active: boolean
+          available_from: string | null
           business_id: string
           category_id: string | null
           created_at: string
@@ -341,6 +342,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          available_from?: string | null
           business_id: string
           category_id?: string | null
           created_at?: string
@@ -352,6 +354,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          available_from?: string | null
           business_id?: string
           category_id?: string | null
           created_at?: string

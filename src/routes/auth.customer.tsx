@@ -31,6 +31,16 @@ function CustomerAuth() {
     await supabase.rpc("assign_my_role", { p_role: "customer" });
   }
 
+  async function routeAfterAuth(uid: string) {
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("first_name, last_name, phone")
+      .eq("user_id", uid)
+      .maybeSingle() as any;
+    const complete = cp && cp.first_name && cp.last_name && cp.phone;
+    navigate({ to: complete ? "/" : "/auth/customer/profile" });
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -53,9 +63,7 @@ function CustomerAuth() {
         if (error) throw error;
         await ensureRole(data.user.id);
         await refresh();
-        const { data: cp } = await supabase.from("customer_profiles").select("first_name, last_name").eq("user_id", data.user.id).maybeSingle() as any;
-        const complete = cp && cp.first_name && cp.last_name;
-        navigate({ to: complete ? "/" : "/auth/customer/profile" });
+        await routeAfterAuth(data.user.id);
       }
     } catch (err: any) {
       toast.error(err.message ?? "Something went wrong");
@@ -72,9 +80,7 @@ function CustomerAuth() {
       if (user) {
         await ensureRole(user.id);
         await refresh();
-        const { data: cp } = await supabase.from("customer_profiles").select("first_name, last_name").eq("user_id", user.id).maybeSingle() as any;
-        const complete = cp && cp.first_name && cp.last_name;
-        navigate({ to: complete ? "/" : "/auth/customer/profile" });
+        await routeAfterAuth(user.id);
       }
     } finally { setBusy(false); }
   }
