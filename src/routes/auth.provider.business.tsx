@@ -48,14 +48,14 @@ function BusinessProfile() {
       } else {
         const { error } = await supabase.rpc("create_business_with_owner", {
           p_name: form.name,
-          p_category: form.category || null,
-          p_phone: form.phone || null,
-          p_address_line1: form.address_line1 || null,
-          p_address_line2: form.address_line2 || null,
-          p_city: form.city || null,
-          p_region: form.region || null,
-          p_postal_code: form.postal_code || null,
-          p_country: form.country || null,
+          p_category: form.category || undefined,
+          p_phone: form.phone || undefined,
+          p_address_line1: form.address_line1 || undefined,
+          p_address_line2: form.address_line2 || undefined,
+          p_city: form.city || undefined,
+          p_region: form.region || undefined,
+          p_postal_code: form.postal_code || undefined,
+          p_country: form.country || undefined,
         });
         if (error) throw error;
       }
