@@ -45,17 +45,14 @@ function ProviderLanding() {
 
   async function load() {
     setBusy(true);
-    // Gate first-time providers into completing their profile
+    // Profile completeness is informational only — surface a banner instead of forcing a redirect
     const { data: pp } = await supabase
       .from("provider_profiles" as any)
       .select("first_name, last_name, phone")
       .eq("user_id", user!.id)
       .maybeSingle() as any;
-    const profileComplete = pp && pp.first_name && pp.last_name && pp.phone;
-    if (!profileComplete) {
-      navigate({ to: "/auth/provider/profile" });
-      return;
-    }
+    const complete = !!(pp && pp.first_name && pp.last_name && pp.phone);
+    setProfileComplete(complete);
     // Auto-claim any pending co-manager invites for this email
     await supabase.rpc("accept_pending_business_invites" as any);
     const { data: links } = await supabase
