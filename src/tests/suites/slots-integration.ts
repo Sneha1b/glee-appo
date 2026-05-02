@@ -14,9 +14,9 @@ function zonedWallTimeToUtc(
   minutesSinceMidnight: number,
   timeZone: string
 ): Date {
-  const y = localDate.getFullYear();
-  const m = localDate.getMonth();
-  const d = localDate.getDate();
+  const y = localDate.getUTCFullYear();
+  const m = localDate.getUTCMonth();
+  const d = localDate.getUTCDate();
   const hh = Math.floor(minutesSinceMidnight / 60);
   const mm = minutesSinceMidnight % 60;
   const guessUtcMs = Date.UTC(y, m, d, hh, mm, 0);
