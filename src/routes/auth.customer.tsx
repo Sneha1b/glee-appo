@@ -50,7 +50,21 @@ function CustomerAuth() {
       .eq("user_id", uid)
       .maybeSingle() as any;
     const complete = cp && cp.first_name && cp.last_name && cp.phone;
-    navigate({ to: complete ? "/businesses" : "/auth/customer/profile" });
+    if (!complete) {
+      navigate({ to: "/auth/customer/profile" });
+      return;
+    }
+    // If exactly one business exists, send the customer straight to it; otherwise show directory.
+    const { data: bizes } = await supabase
+      .from("businesses")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(2);
+    if (bizes && bizes.length === 1) {
+      navigate({ to: "/businesses/$businessId", params: { businessId: bizes[0].id } });
+    } else {
+      navigate({ to: "/businesses" });
+    }
   }
 
   async function submit(e: React.FormEvent) {
