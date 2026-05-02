@@ -104,13 +104,10 @@ function Admin() {
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/"><ArrowLeft /> Back to site</Link>
+            <Link to="/provider"><ArrowLeft /> Your businesses</Link>
           </Button>
           <h1 className="font-semibold">Provider dashboard</h1>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/auth/provider/business">Business profile</Link>
-            </Button>
             <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate({ to: "/" }); }}>
               <LogOut /> Sign out
             </Button>
