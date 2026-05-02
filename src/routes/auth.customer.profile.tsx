@@ -111,6 +111,10 @@ function ProfilePage() {
               </div>
             </div>
             <div>
+              <Label>Email</Label>
+              <Input type="email" value={user?.email ?? ""} readOnly disabled />
+            </div>
+            <div>
               <Label>Phone number</Label>
               <Input
                 type="tel"
