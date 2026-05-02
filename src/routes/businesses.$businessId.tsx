@@ -94,7 +94,7 @@ function BusinessPage() {
             {user ? (
               <>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to="/auth/customer/profile">
+                  <Link to="/profile">
                     <User /> {customerProfile?.full_name || "Profile"}
                   </Link>
                 </Button>
