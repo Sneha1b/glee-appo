@@ -1,67 +1,49 @@
-# Schedora Demo Presentation Plan
+## Goal
 
-Deliverable: a single downloadable `.pptx` saved to `/mnt/documents/Schedora_Demo.pptx`, generated with `pptxgenjs`, embedding real screenshots captured from the live preview.
+Rebuild `Schedora_Demo.pptx` for an **engineering hiring panel**. Light minimal aesthetic, animated GIFs for the live demos, deep technical data model, no email feature anywhere.
 
-## Deck structure (~22 slides)
+## Style system
 
-**Section 1 — Title & agenda (2 slides)**
-1. Title: "Schedora — Appointment Booking Platform" + tagline, gradient cover.
-2. Agenda: Customer demo → Provider demo → New business setup → Architecture → Tech decisions.
+- White background, charcoal text (`#0F172A`), single violet accent (`#7C3AED`).
+- Typography: Calibri body, large bold headings (44pt titles, 14–16pt body).
+- Generous whitespace, ≤25 words per content slide, max 3 bullet groupings.
+- One visual per slide (GIF, diagram, or large stat). No decorative lines under titles. No gradients. No clip-art icons.
 
-**Section 2 — Customer flow (4 slides)**
-3. Discover businesses (`/businesses`) — screenshot + callouts.
-4. View business + pick service (`/businesses/{id}`) — screenshot.
-5. Pick date/slot, complete profile, book (`/book/{serviceId}`) — screenshot.
-6. Confirmation + My Reservations (`/pay/{bookingId}` → `/reservations`) — screenshot, note ICS email via edge fn.
+## Deck (~14 slides, down from 22)
 
-**Section 3 — Provider flow (4 slides)**
-7. Provider hub `/provider` (multi-business cards) — screenshot.
-8. Admin dashboard tabs overview (`/admins/{id}`) — screenshot of Bookings tab.
-9. Services / Staff / Hours / Time blocks — 2x2 thumbnails.
-10. Metrics + Invoices tabs — screenshots, mention 18-month retention + pg_cron cleanup.
+1. **Title** — "Schedora · Appointment booking, end-to-end" + 1-line subtitle.
+2. **What I built** — 3 stats (e.g. routes, tables, tests) — no prose.
+3. **Customer flow — GIF** — full-bleed recorded GIF of: browse → pick service → pick slot → confirm. 1-line caption.
+4. **Provider flow — GIF** — recorded GIF of: login → /provider hub → open dashboard → bookings tab.
+5. **New business setup — GIF** — recorded GIF of: /provider/new → fill form → land in dashboard Store tab.
+6. **Architecture (one diagram)** — clean 3-tier SVG-style PNG: Browser (React 19 + TanStack Start) → Edge Worker (server fns, RPCs) → Postgres (RLS, pg_cron). No email/Resend node.
+7. **Request lifecycle** — sequence diagram for booking: client → server fn → `acquire_slot_lock` RPC → `confirm_booking` RPC → invoice row. (Email step removed.)
+8. **Data model — ERD** — technical ERD with PK/FK, types, key constraints, and the lock/RPC surface annotated. Tables: businesses, business_owners, business_invites, services, staff, staff_availability, store_hours, time_blocks, bookings, invoices, customer_profiles, user_roles, app_role enum. Show FKs and unique constraints.
+9. **Security model** — `user_roles` + `has_role()` SECURITY DEFINER; RLS on every table; privileged writes via RPC (`assign_my_role`, `create_business_with_owner`, `invite_business_manager`, `accept_pending_business_invites`, slot lock + confirm).
+10. **PRD at a glance** — problem · personas · success metrics, 3 columns, terse.
+11. **Stack & why** — 2-column table: choice → one-line justification (TS5, TanStack Start SSR on Workers, Postgres+RLS, TanStack Query, shadcn/ui, Vitest-style in-app runner).
+12. **Key engineering decisions** — 4 cards: roles in separate table; DB-side slot lock for race safety; split browser/admin Supabase clients; client-side slot computation with server validation.
+13. **Test coverage** — real numbers from `/internal/tests` (suites + pass count + items in `coverage.ts`). Single big stat + small per-suite list.
+14. **What's next / Q&A** — 3 bullets max.
 
-**Section 4 — New business setup flow (2 slides)**
-11. `/provider/new` form — screenshot, mention `create_business_with_owner` RPC.
-12. Store tab post-creation: name, description, logo upload to `business-images` bucket.
+## How GIFs get made
 
-**Section 5 — Architecture (4 slides)**
-13. System architecture diagram (rendered offline as PNG, embedded). Layers:
-    - Client: React 19 + TanStack Router/Start (SSR) on Cloudflare Worker
-    - Edge: server fns + `/api/*` routes + `booking-confirmation` edge fn
-    - Data: Supabase Postgres (RLS), Auth, Storage, pg_cron, Resend
-14. Request lifecycle diagram: customer booking → acquireLock RPC → confirmBooking RPC → edge fn → invoice + Resend ICS email.
-15. Data model ERD: `businesses`, `services`, `staff`, `staff_availability`, `store_hours`, `time_blocks`, `bookings`/`invoices`, `business_owners`, `business_invites`, `customer_profiles`, `user_roles`.
-16. Security model: `user_roles` + `has_role()` SECURITY DEFINER, RLS on every table, RPCs for privileged writes (`assign_my_role`, `create_business_with_owner`, `invite_business_manager`, `accept_pending_business_invites`).
+1. Use `browser--navigate_to_sandbox` + `browser--act` to walk each flow at 1366×768.
+2. Capture a sequence of PNG screenshots between actions (5–8 frames per flow).
+3. Compose to GIF with ImageMagick (`nix run nixpkgs#imagemagick -- convert -delay 120 -loop 0 frames/*.png flow.gif`), ~1.5s/frame, optimized.
+4. Embed the GIF in the .pptx via `slide.addImage({ data: 'image/gif;base64,...' })` — pptxgenjs preserves GIF animation when opened in PowerPoint/Keynote.
 
-**Section 6 — Technical decisions (5 slides)**
-17. PRD summary: two-sided marketplace, problem, personas (provider/customer), success metrics — distilled from `README.md`.
-18. User flows + entities recap (compact swimlane).
-19. Stack justification table:
-    - Language: TypeScript 5 (type safety end-to-end, shared types via generated `Database`)
-    - Framework: TanStack Start (file-based routing, SSR on edge, typed links)
-    - DB: Supabase Postgres (RLS, RPCs, pg_cron, Storage, Auth in one) vs roll-your-own
-    - Styling: Tailwind v4 + shadcn/ui (velocity, accessibility)
-    - Hosting: Cloudflare Worker via Lovable Cloud (global, zero ops)
-20. Key engineering decisions & trade-offs:
-    - Roles in separate table (prevents privilege escalation)
-    - Slot computation client-side (`lib/slots.ts`) + DB-side lock RPC for race safety
-    - Two Supabase clients (browser RLS vs service-role server)
-    - Best-effort email (UI doesn't claim sent if Resend missing)
-21. Test coverage: enumerate suites from `src/tests/index.ts` (format, utils, slots-unit, slots-integration, booking-flow, auth-context, use-mobile) and the items in `src/tests/coverage.ts`. Will run `/internal/tests` headlessly via the browser to capture the actual % covered and pass/fail counts, then put real numbers on this slide.
+## What's removed vs. previous deck
 
-**Section 7 — Closing (1 slide)**
-22. What's next + Q&A (roadmap: payments, SMS reminders, multi-tz polish, native mobile).
+- All mention of `booking-confirmation` edge function, Resend, ICS email, email status.
+- Architecture diagram's email node + sequence diagram's email step.
+- Slide 4 ("Confirmation + email") — replaced by GIF ending on success screen.
+- Heavy bullet slides condensed; redundant Services/Staff/Hours/Metrics/Invoices sub-slides removed (covered inside the Provider GIF).
 
-## How it gets built
+## QA
 
-1. Use `browser--navigate_to_sandbox` + `browser--screenshot` to capture ~12 screenshots (customer pages, provider hub, admin tabs, new business form, store tab, /internal/tests results page). Save to `/tmp/shots/`.
-2. Generate the architecture, sequence, and ERD diagrams as PNGs (Python + matplotlib/graphviz, no external services), saved to `/tmp/diagrams/`.
-3. Read `src/tests/coverage.ts`, `src/tests/index.ts`, `README.md`, key route files, and `supabase/migrations/` to ground the technical slides in real code/config.
-4. Run a Node script using `pptxgenjs` to assemble the deck (16:9, US Letter equivalent), embedding all images as base64 (per skill rules), with a cohesive Schedora palette (fuchsia → violet → indigo gradient covers, charcoal body slides).
-5. QA: convert .pptx → PDF via LibreOffice → render each page to JPG → visually inspect every slide for overflow / overlap / contrast / leftover placeholders. Iterate until clean.
-6. Deliver as `<lov-artifact path="Schedora_Demo.pptx" mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation">`.
+Render to PDF → JPG and inspect every slide for: overflow, low contrast, leftover placeholders, any stray "email"/"Resend"/"ICS" text. `grep -i 'email\|resend\|ics'` the extracted text before delivery. Iterate until clean.
 
-## Notes / assumptions
-- Screenshots will be taken while logged-out for public pages and against an existing seeded provider/business for admin pages. If login is required and credentials aren't in the preview session, I'll fall back to a clean "logged-out" view + describe the screen, and flag the gap.
-- Test-coverage numbers come from actually running the in-app `/internal/tests` page, not estimates.
-- Diagrams are generated as static PNGs (not Mermaid artifacts) so they embed cleanly inside the .pptx.
+## Deliverable
+
+`/mnt/documents/Schedora_Demo_v2.pptx` (kept v1 alongside for comparison), surfaced via `<lov-artifact>`.
