@@ -1,56 +1,67 @@
-## Goals
+# Schedora Demo Presentation Plan
 
-1. Let providers create new service **categories** directly from the Services tab in the admin dashboard.
-2. Replace the current single-page `/provider/new` form with a guided multi-step **Add business** wizard collecting: business info & location → store hours → categories & services → staff (optional, with weekly hours + service assignments) → review.
+Deliverable: a single downloadable `.pptx` saved to `/mnt/documents/Schedora_Demo.pptx`, generated with `pptxgenjs`, embedding real screenshots captured from the live preview.
 
-## 1. Categories on the Services tab
+## Deck structure (~22 slides)
 
-Edit `src/routes/admins.$adminId.tsx` → `ServicesTab`:
+**Section 1 — Title & agenda (2 slides)**
+1. Title: "Schedora — Appointment Booking Platform" + tagline, gradient cover.
+2. Agenda: Customer demo → Provider demo → New business setup → Architecture → Tech decisions.
 
-- Add a small "Categories" panel above (or next to) the Add/Edit service card.
-- Lets the owner: list existing categories, add a new one (name input + Add button), and delete an unused category.
-- Inserts into `service_categories` with `business_id`. Existing RLS already allows owners to manage categories.
-- The new category appears immediately in the existing "Category" `<Select>` in the service form.
-- Guard delete: if the category is referenced by any service, show a toast and skip (or null out via a confirm). Simplest: block delete when in use.
+**Section 2 — Customer flow (4 slides)**
+3. Discover businesses (`/businesses`) — screenshot + callouts.
+4. View business + pick service (`/businesses/{id}`) — screenshot.
+5. Pick date/slot, complete profile, book (`/book/{serviceId}`) — screenshot.
+6. Confirmation + My Reservations (`/pay/{bookingId}` → `/reservations`) — screenshot, note ICS email via edge fn.
 
-No schema or RLS changes needed.
+**Section 3 — Provider flow (4 slides)**
+7. Provider hub `/provider` (multi-business cards) — screenshot.
+8. Admin dashboard tabs overview (`/admins/{id}`) — screenshot of Bookings tab.
+9. Services / Staff / Hours / Time blocks — 2x2 thumbnails.
+10. Metrics + Invoices tabs — screenshots, mention 18-month retention + pg_cron cleanup.
 
-## 2. Multi-step Add business wizard
+**Section 4 — New business setup flow (2 slides)**
+11. `/provider/new` form — screenshot, mention `create_business_with_owner` RPC.
+12. Store tab post-creation: name, description, logo upload to `business-images` bucket.
 
-Rewrite `src/routes/provider.new.tsx` as a step-based wizard. Single route, internal step state. Steps:
+**Section 5 — Architecture (4 slides)**
+13. System architecture diagram (rendered offline as PNG, embedded). Layers:
+    - Client: React 19 + TanStack Router/Start (SSR) on Cloudflare Worker
+    - Edge: server fns + `/api/*` routes + `booking-confirmation` edge fn
+    - Data: Supabase Postgres (RLS), Auth, Storage, pg_cron, Resend
+14. Request lifecycle diagram: customer booking → acquireLock RPC → confirmBooking RPC → edge fn → invoice + Resend ICS email.
+15. Data model ERD: `businesses`, `services`, `staff`, `staff_availability`, `store_hours`, `time_blocks`, `bookings`/`invoices`, `business_owners`, `business_invites`, `customer_profiles`, `user_roles`.
+16. Security model: `user_roles` + `has_role()` SECURITY DEFINER, RLS on every table, RPCs for privileged writes (`assign_my_role`, `create_business_with_owner`, `invite_business_manager`, `accept_pending_business_invites`).
 
-```text
-1. Business info     → name*, category, description, phone, logo upload
-2. Location          → address line 1, city, region, postal code, country
-3. Store hours       → 7-day grid (open/close hour inputs; "Closed" toggle per day)
-4. Categories        → add one or more category names (chips with remove)
-5. Services          → add services (name*, duration*, price, description, optional category from step 4)
-6. Staff (optional)  → for each staff: name*, weekly hours (per-day open/close), services they perform (checkboxes from step 5). Skippable.
-7. Review & create   → summary of every section + Create button
-```
+**Section 6 — Technical decisions (5 slides)**
+17. PRD summary: two-sided marketplace, problem, personas (provider/customer), success metrics — distilled from `README.md`.
+18. User flows + entities recap (compact swimlane).
+19. Stack justification table:
+    - Language: TypeScript 5 (type safety end-to-end, shared types via generated `Database`)
+    - Framework: TanStack Start (file-based routing, SSR on edge, typed links)
+    - DB: Supabase Postgres (RLS, RPCs, pg_cron, Storage, Auth in one) vs roll-your-own
+    - Styling: Tailwind v4 + shadcn/ui (velocity, accessibility)
+    - Hosting: Cloudflare Worker via Lovable Cloud (global, zero ops)
+20. Key engineering decisions & trade-offs:
+    - Roles in separate table (prevents privilege escalation)
+    - Slot computation client-side (`lib/slots.ts`) + DB-side lock RPC for race safety
+    - Two Supabase clients (browser RLS vs service-role server)
+    - Best-effort email (UI doesn't claim sent if Resend missing)
+21. Test coverage: enumerate suites from `src/tests/index.ts` (format, utils, slots-unit, slots-integration, booking-flow, auth-context, use-mobile) and the items in `src/tests/coverage.ts`. Will run `/internal/tests` headlessly via the browser to capture the actual % covered and pass/fail counts, then put real numbers on this slide.
 
-Implementation notes:
-- All collected client-side in a single state object until step 7 submit.
-- On submit:
-  1. `supabase.rpc("create_business_with_owner", ...)` → returns `businessId`.
-  2. Insert `business_hours` rows for non-closed days.
-  3. Insert `service_categories` rows; keep a local `tempCategoryId → realId` map.
-  4. Insert `services` rows mapping `category_id` via the map.
-  5. For each staff: insert `staff` row → insert `availabilities` rows → insert `staff_services` rows mapping `service_id` from temp ids to real ids.
-  6. Send manager invites (keep existing capability — surfaced on Step 1 as a small "Invite co-managers" optional block, or moved to Review step).
-  7. **Redirect to `/admins/$adminId` (the dashboard), NOT `/businesses/$businessId`.** This fixes the existing post-create redirect.
-- Each step has Back/Next buttons; Next validates required fields for that step. Step 6 also has a "Skip" button.
-- Top-of-page step indicator (e.g., "Step 3 of 7 · Store hours") with a thin progress bar.
-- All inserts run sequentially with try/catch; on failure show a toast and stay on the review step (the business row will already exist if RPC succeeded — surface "partial save, you can finish setup from the dashboard" and still navigate to `/admins/{id}`).
-- Reuse existing tokens / shadcn `Card`, `Input`, `Label`, `Button`, `Select`, `Textarea`, `Checkbox`. No new deps.
+**Section 7 — Closing (1 slide)**
+22. What's next + Q&A (roadmap: payments, SMS reminders, multi-tz polish, native mobile).
 
-## Files to change
+## How it gets built
 
-- `src/routes/admins.$adminId.tsx` — add a Categories management UI inside `ServicesTab`.
-- `src/routes/provider.new.tsx` — replace single form with multi-step wizard (steps + state machine + sequenced inserts + correct post-save redirect to `/admins/$adminId`).
+1. Use `browser--navigate_to_sandbox` + `browser--screenshot` to capture ~12 screenshots (customer pages, provider hub, admin tabs, new business form, store tab, /internal/tests results page). Save to `/tmp/shots/`.
+2. Generate the architecture, sequence, and ERD diagrams as PNGs (Python + matplotlib/graphviz, no external services), saved to `/tmp/diagrams/`.
+3. Read `src/tests/coverage.ts`, `src/tests/index.ts`, `README.md`, key route files, and `supabase/migrations/` to ground the technical slides in real code/config.
+4. Run a Node script using `pptxgenjs` to assemble the deck (16:9, US Letter equivalent), embedding all images as base64 (per skill rules), with a cohesive Schedora palette (fuchsia → violet → indigo gradient covers, charcoal body slides).
+5. QA: convert .pptx → PDF via LibreOffice → render each page to JPG → visually inspect every slide for overflow / overlap / contrast / leftover placeholders. Iterate until clean.
+6. Deliver as `<lov-artifact path="Schedora_Demo.pptx" mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation">`.
 
-## Out of scope
-
-- Schema/RLS changes (existing `service_categories`, `business_hours`, `staff`, `availabilities`, `staff_services` policies already cover owner inserts).
-- Booking-time blocks on the wizard (kept on the dashboard's existing Time blocks tab).
-- Editing categories from the wizard step 5 onward (only add/remove on step 4).
+## Notes / assumptions
+- Screenshots will be taken while logged-out for public pages and against an existing seeded provider/business for admin pages. If login is required and credentials aren't in the preview session, I'll fall back to a clean "logged-out" view + describe the screen, and flag the gap.
+- Test-coverage numbers come from actually running the in-app `/internal/tests` page, not estimates.
+- Diagrams are generated as static PNGs (not Mermaid artifacts) so they embed cleanly inside the .pptx.
