@@ -303,22 +303,45 @@ function BookPage() {
         </Card>
 
         <div className="space-y-4">
+          {autoJumpedFrom && (
+            <Alert className="relative pr-10">
+              <CalendarClock className="size-4" />
+              <AlertDescription>
+                No openings on {fmtDate(autoJumpedFrom)} — showing the next available day instead.
+              </AlertDescription>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setAutoJumpedFrom(null)}
+                className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted"
+              >
+                <X className="size-3.5" />
+              </button>
+            </Alert>
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">{date ? fmtDate(date) : "Pick a date"}</CardTitle>
               <CardDescription>
-                {loadingSlots
-                  ? "Loading availability…"
-                  : `${slots.length} slot${slots.length === 1 ? "" : "s"} available`}
+                {searching
+                  ? "Finding the next available day…"
+                  : loadingSlots
+                    ? "Loading availability…"
+                    : `${slots.length} slot${slots.length === 1 ? "" : "s"} available`}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingSlots ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> Loading…
+                  <Loader2 className="size-4 animate-spin" />
+                  {searching ? "Finding the next available day…" : "Loading…"}
                 </div>
               ) : slots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No availability on this day. Try another date.</p>
+                <p className="text-sm text-muted-foreground">
+                  {noAvailWindow
+                    ? "No availability in the next 15 days. Try contacting the business directly."
+                    : "No availability on this day. Try another date."}
+                </p>
               ) : (
                 <div className="space-y-4">
                   {[...byStaff.entries()].map(([sid, sl]) => (
