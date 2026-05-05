@@ -168,6 +168,25 @@ export async function computeSlots(opts: {
   return out;
 }
 
+// Scan day-by-day starting at fromDate; return the first date with >=1 slot, plus its slots.
+export async function findNextAvailableDay(opts: {
+  serviceId: string;
+  durationMin: number;
+  fromDate: Date;
+  horizonDays: number;
+  staffIdFilter?: string | null;
+}): Promise<{ date: Date; slots: Slot[] } | null> {
+  const { serviceId, durationMin, fromDate, horizonDays, staffIdFilter } = opts;
+  for (let i = 0; i < horizonDays; i++) {
+    const d = new Date(fromDate);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    const slots = await computeSlots({ serviceId, durationMin, date: d, staffIdFilter });
+    if (slots.length > 0) return { date: d, slots };
+  }
+  return null;
+}
+
 // Friendly mapper for server-side validation errors
 function mapBookingError(message: string): string {
   const m = (message || "").toLowerCase();
