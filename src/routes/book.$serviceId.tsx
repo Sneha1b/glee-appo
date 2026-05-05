@@ -8,8 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, Loader2, Timer } from "lucide-react";
-import { computeSlots, acquireLock, releaseLock, confirmBooking, getSessionId, type Slot } from "@/lib/slots";
+import { ArrowLeft, Clock, Loader2, Timer, X, CalendarClock } from "lucide-react";
+import { computeSlots, findNextAvailableDay, acquireLock, releaseLock, confirmBooking, getSessionId, type Slot } from "@/lib/slots";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fmtTime, fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -38,7 +39,12 @@ function BookPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<{ when: string; staff: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [searching, setSearching] = useState(false);
+  const [autoJumpedFrom, setAutoJumpedFrom] = useState<Date | null>(null);
+  const [noAvailWindow, setNoAvailWindow] = useState(false);
   const holderRef = useRef<string>("");
+  const initialScanDoneRef = useRef(false);
+  const skipNextFetchRef = useRef(false);
 
   if (!holderRef.current) holderRef.current = getSessionId();
 
@@ -63,12 +69,54 @@ function BookPage() {
       .then(({ data }) => setService(data as Service | null));
   }, [serviceId]);
 
-  // Load slots when date changes
+  // Initial scan: find the first day with availability within 15 days
+  useEffect(() => {
+    if (!service || initialScanDoneRef.current) return;
+    initialScanDoneRef.current = true;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setSearching(true);
+    setLoadingSlots(true);
+    findNextAvailableDay({
+      serviceId: service.id,
+      durationMin: service.duration_min,
+      fromDate: today,
+      horizonDays: 15,
+    })
+      .then((result) => {
+        if (!result) {
+          setNoAvailWindow(true);
+          setSlots([]);
+          return;
+        }
+        const isToday = result.date.getTime() === today.getTime();
+        if (!isToday) {
+          setAutoJumpedFrom(today);
+          skipNextFetchRef.current = true;
+          setDate(result.date);
+        }
+        setSlots(result.slots);
+      })
+      .catch((e) => toast.error(e.message ?? "Failed to load availability"))
+      .finally(() => {
+        setSearching(false);
+        setLoadingSlots(false);
+      });
+  }, [service]);
+
+  // Load slots when date changes (after initial scan / on user pick)
   useEffect(() => {
     if (!service || !date) return;
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
+    if (!initialScanDoneRef.current) return;
     setLoadingSlots(true);
     setPicked(null);
     setLockExpiresAt(null);
+    setAutoJumpedFrom(null);
+    setNoAvailWindow(false);
     computeSlots({ serviceId: service.id, durationMin: service.duration_min, date })
       .then(setSlots)
       .catch((e) => toast.error(e.message ?? "Failed to load slots"))
@@ -255,22 +303,45 @@ function BookPage() {
         </Card>
 
         <div className="space-y-4">
+          {autoJumpedFrom && (
+            <Alert className="relative pr-10">
+              <CalendarClock className="size-4" />
+              <AlertDescription>
+                No openings on {fmtDate(autoJumpedFrom)} — showing the next available day instead.
+              </AlertDescription>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setAutoJumpedFrom(null)}
+                className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted"
+              >
+                <X className="size-3.5" />
+              </button>
+            </Alert>
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">{date ? fmtDate(date) : "Pick a date"}</CardTitle>
               <CardDescription>
-                {loadingSlots
-                  ? "Loading availability…"
-                  : `${slots.length} slot${slots.length === 1 ? "" : "s"} available`}
+                {searching
+                  ? "Finding the next available day…"
+                  : loadingSlots
+                    ? "Loading availability…"
+                    : `${slots.length} slot${slots.length === 1 ? "" : "s"} available`}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingSlots ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> Loading…
+                  <Loader2 className="size-4 animate-spin" />
+                  {searching ? "Finding the next available day…" : "Loading…"}
                 </div>
               ) : slots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No availability on this day. Try another date.</p>
+                <p className="text-sm text-muted-foreground">
+                  {noAvailWindow
+                    ? "No availability in the next 15 days. Try contacting the business directly."
+                    : "No availability on this day. Try another date."}
+                </p>
               ) : (
                 <div className="space-y-4">
                   {[...byStaff.entries()].map(([sid, sl]) => (
