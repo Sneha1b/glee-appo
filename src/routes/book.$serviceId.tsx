@@ -39,7 +39,12 @@ function BookPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<{ when: string; staff: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [searching, setSearching] = useState(false);
+  const [autoJumpedFrom, setAutoJumpedFrom] = useState<Date | null>(null);
+  const [noAvailWindow, setNoAvailWindow] = useState(false);
   const holderRef = useRef<string>("");
+  const initialScanDoneRef = useRef(false);
+  const skipNextFetchRef = useRef(false);
 
   if (!holderRef.current) holderRef.current = getSessionId();
 
@@ -64,12 +69,54 @@ function BookPage() {
       .then(({ data }) => setService(data as Service | null));
   }, [serviceId]);
 
-  // Load slots when date changes
+  // Initial scan: find the first day with availability within 15 days
+  useEffect(() => {
+    if (!service || initialScanDoneRef.current) return;
+    initialScanDoneRef.current = true;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setSearching(true);
+    setLoadingSlots(true);
+    findNextAvailableDay({
+      serviceId: service.id,
+      durationMin: service.duration_min,
+      fromDate: today,
+      horizonDays: 15,
+    })
+      .then((result) => {
+        if (!result) {
+          setNoAvailWindow(true);
+          setSlots([]);
+          return;
+        }
+        const isToday = result.date.getTime() === today.getTime();
+        if (!isToday) {
+          setAutoJumpedFrom(today);
+          skipNextFetchRef.current = true;
+          setDate(result.date);
+        }
+        setSlots(result.slots);
+      })
+      .catch((e) => toast.error(e.message ?? "Failed to load availability"))
+      .finally(() => {
+        setSearching(false);
+        setLoadingSlots(false);
+      });
+  }, [service]);
+
+  // Load slots when date changes (after initial scan / on user pick)
   useEffect(() => {
     if (!service || !date) return;
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
+    if (!initialScanDoneRef.current) return;
     setLoadingSlots(true);
     setPicked(null);
     setLockExpiresAt(null);
+    setAutoJumpedFrom(null);
+    setNoAvailWindow(false);
     computeSlots({ serviceId: service.id, durationMin: service.duration_min, date })
       .then(setSlots)
       .catch((e) => toast.error(e.message ?? "Failed to load slots"))
