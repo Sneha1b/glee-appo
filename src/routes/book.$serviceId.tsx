@@ -8,8 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, Loader2, Timer } from "lucide-react";
-import { computeSlots, acquireLock, releaseLock, confirmBooking, getSessionId, type Slot } from "@/lib/slots";
+import { ArrowLeft, Clock, Loader2, Timer, X, CalendarClock } from "lucide-react";
+import { computeSlots, findNextAvailableDay, acquireLock, releaseLock, confirmBooking, getSessionId, type Slot } from "@/lib/slots";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fmtTime, fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
 
