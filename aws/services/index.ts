@@ -11,7 +11,7 @@ export * from "./services";
 export * from "./slots";
 export * from "./timeBlocks";
 
-// staff.ts has the canonical staff CRUD + availabilities + staffServices.
+// staffServices.ts has the canonical staff CRUD + availabilities + staffServices.
 export {
   listStaffByBusiness,
   createStaff,
@@ -21,7 +21,7 @@ export {
   removeServiceFromStaff,
   listAvailabilities,
   replaceAvailabilityForWeekday,
-} from "./staff";
+} from "./staffServices";
 
 // users.ts owns AppRole; role.ts re-exports the same type.
 export { type AppRole, getUserByCognitoSub, upsertUserFromCognito } from "./users";
