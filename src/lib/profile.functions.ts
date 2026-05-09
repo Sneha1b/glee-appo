@@ -31,12 +31,12 @@ export const upsertCustomerProfileFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const u = await requireUser();
     // Ensure role
-    if (u.role !== "customer" && u.role !== "provider") {
+    if (u.appUser.role !== "customer" && u.appUser.role !== "provider") {
       await setUserRoleByCognitoSub({ cognitoSub: u.cognitoSub, role: "customer" });
     }
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     const row = await upsertCustomerProfile({
-      userId: u.id,
+      userId: u.appUser.id,
       fullName,
       firstName: data.firstName,
       lastName: data.lastName,
@@ -63,11 +63,11 @@ export const upsertProviderProfileFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const u = await requireUser();
-    if (u.role !== "provider") {
+    if (u.appUser.role !== "provider") {
       await setUserRoleByCognitoSub({ cognitoSub: u.cognitoSub, role: "provider" });
     }
     const row = await upsertProviderProfile({
-      userId: u.id,
+      userId: u.appUser.id,
       firstName: data.firstName,
       lastName: data.lastName,
       email: u.email,
@@ -83,7 +83,7 @@ export const upsertProviderProfileFn = createServerFn({ method: "POST" })
 
 export const listMyBusinesses = createServerFn({ method: "GET" }).handler(async () => {
   const u = await requireUser();
-  const rows = await listBusinessesByOwnerId(u.id);
+  const rows = await listBusinessesByOwnerId(u.appUser.id);
   return rows.map((b) => ({
     id: b.id,
     name: b.name,
@@ -123,11 +123,11 @@ export const createMyBusiness = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const u = await requireUser();
-    if (u.role !== "provider") {
+    if (u.appUser.role !== "provider") {
       await setUserRoleByCognitoSub({ cognitoSub: u.cognitoSub, role: "provider" });
     }
     const biz = await createBusinessWithOwner({
-      ownerUserId: u.id,
+      ownerUserId: u.appUser.id,
       name: data.name,
       category: data.category ?? null,
       phone: data.phone ?? null,
