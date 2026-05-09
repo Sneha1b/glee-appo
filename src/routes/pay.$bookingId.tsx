@@ -61,8 +61,8 @@ function PayPage() {
         return;
       }
       setPaid(true);
-      setEmailSent(res.emailStatus === "sent");
-      toast.success(res.emailStatus === "sent"
+      setEmailSent((res.emailStatus as string) === "sent");
+      toast.success((res.emailStatus as string) === "sent"
         ? "Payment successful (mock). Confirmation email sent."
         : "Payment successful (mock). Your booking is confirmed.");
       setTimeout(() => navigate({ to: "/reservations" }), 2500);
