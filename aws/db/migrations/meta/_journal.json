@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1778349425900,
+      "tag": "0000_supreme_tony_stark",
+      "breakpoints": true
+    }
+  ]
+}

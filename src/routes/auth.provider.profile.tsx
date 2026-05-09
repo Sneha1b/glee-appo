@@ -46,7 +46,7 @@ function ProviderProfilePage() {
         setLastName(data.last_name ?? "");
         setPhone(data.phone ?? "");
       } else {
-        const meta = (user.user_metadata ?? {}) as any;
+        const meta = ((user as any).user_metadata ?? {}) as any;
         const guess = (meta.full_name ?? meta.name ?? "").trim();
         const [f, ...rest] = guess.split(" ");
         setFirstName(f ?? "");
