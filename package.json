@@ -4,13 +4,17 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "build:aws": "vite build --config vite.config.aws.ts",
-    "build:dev": "vite build --mode development",
-    "preview": "vite preview",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "dev": "bunx vite dev",
+    "build": "bunx vite build",
+    "build:aws": "bunx vite build --config vite.config.aws.ts",
+    "build:dev": "bunx vite build --mode development",
+    "preview": "bunx vite preview",
+    "lint": "bunx eslint .",
+    "format": "bunx prettier --write ."
+
+    "db:generate": "bunx drizzle-kit generate --config=aws/drizzle.config.ts",
+    "db:migrate": "bunx drizzle-kit migrate --config=aws/drizzle.config.ts",
+    "db:studio": "bunx drizzle-kit studio --config=aws/drizzle.config.ts"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
