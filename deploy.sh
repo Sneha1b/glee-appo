@@ -80,7 +80,18 @@ echo "      ✓ Container is running"
 echo ""
 
 # Step 5
-echo "[5/5] Waiting for app to boot (3s) then checking logs..."
+echo "[5/5] Extracting static assets and reloading Caddy..."
+$SSH "
+  rm -rf /home/ec2-user/static
+  docker cp $CONTAINER_NAME:/app/dist/client /home/ec2-user/static
+  chmod -R 755 /home/ec2-user/static
+  sudo systemctl reload caddy
+  echo '      Caddy reloaded'
+"
+echo "      ✓ Static assets updated"
+echo ""
+
+echo "[+] Checking container logs..."
 sleep 3
 $SSH "docker logs --tail 20 $CONTAINER_NAME"
 echo ""
