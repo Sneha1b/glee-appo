@@ -28,7 +28,15 @@ echo ""
 
 # Step 1
 echo "[1/5] Building Docker image for linux/amd64..."
-docker build --platform linux/amd64 -t "$ECR_REPO" .
+
+# Read VITE_* vars from local .env so they get baked into the client bundle
+source <(grep "^VITE_" .env | sed 's/^/export /')
+
+docker build --platform linux/amd64 \
+  --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
+  --build-arg VITE_SUPABASE_PROJECT_ID="$VITE_SUPABASE_PROJECT_ID" \
+  -t "$ECR_REPO" .
 echo "      ✓ Build complete"
 echo ""
 
