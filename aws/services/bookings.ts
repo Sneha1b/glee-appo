@@ -1,5 +1,5 @@
 import { and, eq, gte, lt } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
+import { db, schema } from "../db/client";
 
 export async function listBookingsByBusiness(businessId: string) {
   return db.select().from(schema.bookings).where(eq(schema.bookings.businessId, businessId));

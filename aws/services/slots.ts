@@ -1,5 +1,5 @@
 import { and, eq, gt, gte, inArray, lt } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
+import { db, schema } from "../db/client";
 
 export async function getBookedSlots(input: {
   staffIds: string[];

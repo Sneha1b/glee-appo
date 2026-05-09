@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
+import { db, schema } from "../db/client";
 
 export async function getCurrentUserContext(cognitoSub: string) {
   const user = await db.query.appUsers.findFirst({

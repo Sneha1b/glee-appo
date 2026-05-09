@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, lte } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
+import { db, schema } from "../db/client";
 
 export async function listInvoicesByBusiness(input: {
   businessId: string;
