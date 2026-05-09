@@ -3,19 +3,19 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireUser } from "@/aws/auth/server";
+import { requireUser } from "../../aws/auth/server";
 import {
   upsertCustomerProfile,
   upsertProviderProfile,
   getCurrentUserContext,
-} from "@/aws/services/profiles";
+} from "../../aws/services/profiles";
 import {
   createBusinessWithOwner,
   listBusinessesByOwnerId,
   updateBusiness,
   getBusinessById,
-} from "@/aws/services/businesses";
-import { setUserRoleByCognitoSub } from "@/aws/services/role";
+} from "../../aws/services/businesses";
+import { setUserRoleByCognitoSub } from "../../aws/services/role";
 
 export const upsertCustomerProfileFn = createServerFn({ method: "POST" })
   .inputValidator(

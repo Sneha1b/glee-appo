@@ -5,16 +5,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { and, eq, gt, gte, inArray, lt, desc } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
-import { acquireSlotLock, releaseSlotLock, confirmBooking } from "@/aws/services/slots";
-import { getBookingDetails } from "@/aws/services/bookings";
+import { db, schema } from "../../aws/db/client";
+import { acquireSlotLock, releaseSlotLock, confirmBooking } from "../../aws/services/slots";
+import { getBookingDetails } from "../../aws/services/bookings";
 import {
   getInvoiceByBookingId,
   createInvoice,
   listInvoicesByCustomerEmail,
-} from "@/aws/services/invoices";
-import { getBusinessesByIds } from "@/aws/services/businesses";
-import { requireUser } from "@/aws/auth/server";
+} from "../../aws/services/invoices";
+import { getBusinessesByIds } from "../../aws/services/businesses";
+import { requireUser } from "../../aws/auth/server";
 
 const SLOT_STEP_MIN = 15;
 

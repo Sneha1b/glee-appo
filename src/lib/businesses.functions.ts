@@ -10,8 +10,8 @@ import {
   getBusinessById,
   listServiceCategories,
   listAvailableServicesForBusiness,
-} from "@/aws/services/businesses";
-import { getServiceById } from "@/aws/services/services";
+} from "../../aws/services/businesses";
+import { getServiceById } from "../../aws/services/services";
 
 function toBusiness(b: NonNullable<Awaited<ReturnType<typeof getBusinessById>>>) {
   return {
