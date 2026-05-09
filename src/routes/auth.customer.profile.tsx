@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
+import { upsertCustomerProfileFn } from "@/lib/profile.functions";
+import { listBusinessesPublic } from "@/lib/businesses.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +19,12 @@ export const Route = createFileRoute("/auth/customer/profile")({
 function ProfilePage() {
   const { user, loading, refresh, customerProfile } = useAuth();
   const navigate = useNavigate();
+  const callUpsert = useServerFn(upsertCustomerProfileFn);
+  const callListBiz = useServerFn(listBusinessesPublic);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -29,67 +32,37 @@ function ProfilePage() {
       navigate({ to: "/auth/customer", search: { mode: "login" } });
       return;
     }
-    (async () => {
-      const { data } = await supabase
-        .from("customer_profiles")
-        .select("first_name, last_name, full_name, phone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (data) {
-        const d = data as any;
-        setFirstName(d.first_name ?? (d.full_name?.split(" ")[0] ?? ""));
-        setLastName(d.last_name ?? (d.full_name?.split(" ").slice(1).join(" ") ?? ""));
-        setPhone(d.phone ?? "");
-      } else {
-        const meta = (user.user_metadata ?? {}) as any;
-        const guess = (meta.full_name ?? meta.name ?? "").trim();
-        const [f, ...rest] = guess.split(" ");
-        setFirstName(f ?? "");
-        setLastName(rest.join(" "));
-      }
-      setLoaded(true);
-    })();
-  }, [loading, user]);
+    if (customerProfile) {
+      setFirstName(customerProfile.first_name ?? customerProfile.full_name?.split(" ")[0] ?? "");
+      setLastName(customerProfile.last_name ?? customerProfile.full_name?.split(" ").slice(1).join(" ") ?? "");
+      setPhone(customerProfile.phone ?? "");
+    }
+  }, [loading, user, customerProfile, navigate]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
     setBusy(true);
     try {
-      const full = `${firstName} ${lastName}`.trim();
-      const { error } = await supabase.from("customer_profiles").upsert(
-        {
-          user_id: user.id,
-          first_name: firstName,
-          last_name: lastName,
-          full_name: full,
-          phone: phone || null,
-          updated_at: new Date().toISOString(),
-        } as any,
-        { onConflict: "user_id" },
-      );
-      if (error) throw error;
+      await callUpsert({
+        data: { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || null },
+      });
       await refresh();
       toast.success("Profile saved");
-      const { data: bizes } = await supabase
-        .from("businesses")
-        .select("id")
-        .order("created_at", { ascending: true })
-        .limit(2);
-      if (bizes && bizes.length === 1) {
+      const bizes = await callListBiz();
+      if (bizes.length === 1) {
         navigate({ to: "/businesses/$businessId", params: { businessId: bizes[0].id } });
       } else {
         navigate({ to: "/businesses" });
       }
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err?.message ?? "Failed to save");
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading || !loaded) return <div className="p-12 text-center">Loading…</div>;
+  if (loading) return <div className="p-12 text-center">Loading…</div>;
 
   return (
     <div className="min-h-screen grid place-items-center bg-background p-6">
@@ -116,13 +89,7 @@ function ProfilePage() {
             </div>
             <div>
               <Label>Phone number</Label>
-              <Input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                placeholder="+1 555 123 4567"
-              />
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+1 555 123 4567" />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy && <Loader2 className="size-4 animate-spin" />} Save profile

@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Plus, Building2, MapPin, LogOut, User } from "lucide-react";
+import { listProviderBusinesses } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/provider/")({
   component: ProviderLanding,
@@ -22,13 +23,20 @@ type Biz = {
 };
 
 function ProviderLanding() {
-  const { user, loading, signOut, refresh } = useAuth();
+  const { user, loading, signOut, providerProfile } = useAuth();
   const navigate = useNavigate();
+  const fetchBusinesses = useServerFn(listProviderBusinesses);
   const [businesses, setBusinesses] = useState<Biz[]>([]);
   const [busy, setBusy] = useState(true);
-  const [profileComplete, setProfileComplete] = useState(true);
   const loadedForUidRef = useRef<string | null>(null);
   const redirectedRef = useRef<string | null>(null);
+
+  const profileComplete = !!(
+    providerProfile &&
+    providerProfile.first_name &&
+    providerProfile.last_name &&
+    providerProfile.phone
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -46,48 +54,15 @@ function ProviderLanding() {
 
   async function load() {
     setBusy(true);
-    // Self-heal role: if this user landed here (has business ownership) but
-    // their role is still "customer" from an earlier signup, promote them.
-    void Promise.resolve(supabase.rpc("assign_my_role", { p_role: "provider" }))
-      .then(() => refresh())
-      .catch(() => {});
-    // Run profile check + owner-link fetch in parallel. Invite acceptance runs
-    // in the background — it almost never returns rows after first login and
-    // shouldn't block the businesses grid from rendering.
-    void Promise.resolve(supabase.rpc("accept_pending_business_invites" as any))
-      .then(() => { void refreshBusinesses(); })
-      .catch(() => {});
-
-    const [{ data: pp }, { data: links }] = await Promise.all([
-      supabase.from("provider_profiles" as any).select("first_name, last_name, phone").eq("user_id", user!.id).maybeSingle() as any,
-      supabase.from("business_owners").select("business_id").eq("user_id", user!.id),
-    ]);
-    const complete = !!(pp && pp.first_name && pp.last_name && pp.phone);
-    setProfileComplete(complete);
-
-    const ids = (links ?? []).map((l: any) => l.business_id).filter(Boolean);
-    if (ids.length === 0) { setBusinesses([]); setBusy(false); return; }
-    const { data } = await supabase
-      .from("businesses")
-      .select("id, name, category, city, region, logo_url, banner_url")
-      .in("id", ids);
-    setBusinesses((data as Biz[]) ?? []);
-    setBusy(false);
-  }
-
-  async function refreshBusinesses() {
-    if (!user) return;
-    const { data: links } = await supabase
-      .from("business_owners")
-      .select("business_id")
-      .eq("user_id", user.id);
-    const ids = (links ?? []).map((l: any) => l.business_id).filter(Boolean);
-    if (ids.length === 0) return;
-    const { data } = await supabase
-      .from("businesses")
-      .select("id, name, category, city, region, logo_url, banner_url")
-      .in("id", ids);
-    setBusinesses((data as Biz[]) ?? []);
+    try {
+      const rows = await fetchBusinesses();
+      setBusinesses(rows as Biz[]);
+    } catch (e) {
+      console.warn("listProviderBusinesses", e);
+      setBusinesses([]);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

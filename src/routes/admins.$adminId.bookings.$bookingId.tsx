@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,6 +10,12 @@ import { ArrowLeft, Loader2, Mail, Phone, User, Trash2, CalendarClock } from "lu
 import { computeSlots, type Slot } from "@/lib/slots";
 import { fmtDateTime, fmtTime, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
+import {
+  checkBusinessOwnership,
+  getAdminBooking,
+  cancelAdminBooking,
+  rescheduleAdminBooking,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admins/$adminId/bookings/$bookingId")({
   component: BookingDetail,
@@ -20,6 +26,11 @@ function BookingDetail() {
   const { adminId, bookingId } = Route.useParams();
   const { user, loading: authLoading, role } = useAuth();
   const navigate = useNavigate();
+  const checkOwn = useServerFn(checkBusinessOwnership);
+  const fetchBooking = useServerFn(getAdminBooking);
+  const cancelFn = useServerFn(cancelAdminBooking);
+  const rescheduleFn = useServerFn(rescheduleAdminBooking);
+
   const [ownership, setOwnership] = useState<"checking" | "owner" | "denied">("checking");
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -37,36 +48,35 @@ function BookingDetail() {
     let cancelled = false;
     setOwnership("checking");
     (async () => {
-      const { data, error } = await supabase
-        .from("business_owners")
-        .select("business_id")
-        .eq("user_id", user.id)
-        .eq("business_id", adminId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error || !data) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
-      setOwnership("owner");
+      try {
+        const r = await checkOwn({ data: { businessId: adminId } });
+        if (cancelled) return;
+        if (!r.ok) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
+        setOwnership("owner");
+      } catch {
+        setOwnership("denied"); navigate({ to: "/provider", replace: true });
+      }
     })();
     return () => { cancelled = true; };
-  }, [authLoading, user?.id, role, adminId]);
+  }, [authLoading, user?.id, role, adminId, navigate, checkOwn]);
 
   async function load() {
-    const { data } = await supabase
-      .from("bookings")
-      .select("*, service:service_id(id,name,duration_min,price), staff:staff_id(name), business:business_id(name)")
-      .eq("id", bookingId)
-      .maybeSingle();
-    setBooking(data);
-    setLoading(false);
-    if (data) {
-      const d = new Date(data.start_at);
-      d.setHours(0, 0, 0, 0);
-      setDate(d);
+    try {
+      const data = await fetchBooking({ data: { businessId: adminId, bookingId } });
+      setBooking(data);
+      if (data) {
+        const d = new Date(data.start_at);
+        d.setHours(0, 0, 0, 0);
+        setDate(d);
+      }
+    } finally {
+      setLoading(false);
     }
   }
   useEffect(() => {
     if (ownership !== "owner") return;
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, ownership]);
 
   useEffect(() => {
@@ -79,14 +89,11 @@ function BookingDetail() {
   }, [rescheduling, date, booking]);
 
   async function cancel() {
-    if (!confirm("Cancel this booking? The customer will be emailed.")) return;
+    if (!confirm("Cancel this booking?")) return;
     setBusy(true);
     try {
-      const { error } = await supabase.from("bookings").update({ status: "cancelled" }).eq("id", bookingId);
-      if (error) throw error;
-      supabase.functions.invoke("booking-confirmation", { body: { bookingId, action: "cancel" } })
-        .catch((e) => console.warn(e));
-      toast.success("Booking cancelled — email sent.");
+      await cancelFn({ data: { businessId: adminId, bookingId } });
+      toast.success("Booking cancelled");
       navigate({ to: "/admins/$adminId", params: { adminId } });
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to cancel");
@@ -95,18 +102,10 @@ function BookingDetail() {
 
   async function applyReschedule() {
     if (!picked || !booking) return;
-    const previousStartAt = booking.start_at;
-    const previousEndAt = booking.end_at;
     setBusy(true);
     try {
-      const { error } = await supabase.from("bookings")
-        .update({ start_at: picked.startAt, end_at: picked.endAt })
-        .eq("id", bookingId);
-      if (error) throw error;
-      supabase.functions.invoke("booking-confirmation", {
-        body: { bookingId, action: "reschedule", previousStartAt, previousEndAt },
-      }).catch((e) => console.warn(e));
-      toast.success("Rescheduled — updated invite emailed.");
+      await rescheduleFn({ data: { businessId: adminId, bookingId, startAt: picked.startAt, endAt: picked.endAt } });
+      toast.success("Rescheduled");
       setRescheduling(false);
       load();
     } catch (e: any) {
@@ -171,7 +170,7 @@ function BookingDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Pick a new time</CardTitle>
-              <CardDescription>Showing slots for {booking.staff?.name}. The customer will receive an updated calendar invite.</CardDescription>
+              <CardDescription>Showing slots for {booking.staff?.name}.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-[auto_1fr]">
               <Calendar

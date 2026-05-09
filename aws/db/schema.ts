@@ -1,310 +1,325 @@
-/**
- * Drizzle MySQL 8 schema — port of Supabase public.* tables.
- *
- * Conversions:
- *   uuid                 -> CHAR(36) with (UUID()) default
- *   timestamptz          -> TIMESTAMP (store UTC, app converts to business tz)
- *   numeric              -> DECIMAL(12,2)
- *   smallint             -> tinyint
- *   text                 -> varchar(N) where bounded, text otherwise
- *   jsonb                -> JSON
- *   enum app_role        -> mysqlEnum
- *
- * RLS is GONE — every query path must enforce ownership in TypeScript.
- */
 import {
-  mysqlTable,
-  varchar,
-  char,
-  text,
-  int,
-  tinyint,
-  decimal,
   boolean,
+  date,
+  index,
+  integer,
+  numeric,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
   timestamp,
   uniqueIndex,
-  index,
-  mysqlEnum,
-  primaryKey,
-} from "drizzle-orm/mysql-core";
+  uuid,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-const uuid = (name: string) =>
-  char(name, { length: 36 }).default(sql`(UUID())`).notNull();
+export const appRole = pgEnum("app_role", ["customer", "provider"]);
 
-const ts = (name: string) =>
-  timestamp(name, { fsp: 3 }).default(sql`CURRENT_TIMESTAMP(3)`).notNull();
+const id = (name = "id") =>
+  uuid(name).primaryKey().default(sql`gen_random_uuid()`);
 
-// ---------- Users / roles ----------
-// Cognito owns the user identity; we mirror the user_id (Cognito `sub`) here.
-export const userRoles = mysqlTable(
-  "user_roles",
-  {
-    id: uuid("id").primaryKey(),
-    userId: char("user_id", { length: 36 }).notNull(),
-    role: mysqlEnum("role", ["customer", "provider"]).notNull(),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    userRoleUq: uniqueIndex("user_roles_user_role_uq").on(t.userId, t.role),
-  }),
-);
+const createdAt = () =>
+  timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
-export const providerProfiles = mysqlTable("provider_profiles", {
-  id: uuid("id").primaryKey(),
-  userId: char("user_id", { length: 36 }).notNull().unique(),
-  firstName: varchar("first_name", { length: 120 }).notNull(),
-  lastName: varchar("last_name", { length: 120 }).notNull(),
-  email: varchar("email", { length: 320 }).notNull(),
-  phone: varchar("phone", { length: 40 }).notNull(),
-  createdAt: ts("created_at"),
-  updatedAt: ts("updated_at"),
-});
+const updatedAt = () =>
+  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
 
-export const customerProfiles = mysqlTable("customer_profiles", {
-  id: uuid("id").primaryKey(),
-  userId: char("user_id", { length: 36 }).notNull().unique(),
-  fullName: varchar("full_name", { length: 240 }).notNull(),
-  firstName: varchar("first_name", { length: 120 }),
-  lastName: varchar("last_name", { length: 120 }),
-  phone: varchar("phone", { length: 40 }),
-  createdAt: ts("created_at"),
-  updatedAt: ts("updated_at"),
-});
-
-// ---------- Businesses ----------
-export const businesses = mysqlTable("businesses", {
-  id: uuid("id").primaryKey(),
-  name: varchar("name", { length: 240 }).notNull(),
-  category: varchar("category", { length: 120 }),
+export const businesses = pgTable("businesses", {
+  id: id(),
+  name: text("name").notNull(),
+  category: text("category"),
+  timezone: text("timezone").notNull().default("UTC"),
   description: text("description"),
-  phone: varchar("phone", { length: 40 }),
-  addressLine1: varchar("address_line1", { length: 240 }),
-  addressLine2: varchar("address_line2", { length: 240 }),
-  city: varchar("city", { length: 120 }),
-  region: varchar("region", { length: 120 }),
-  postalCode: varchar("postal_code", { length: 40 }),
-  country: varchar("country", { length: 80 }),
-  timezone: varchar("timezone", { length: 64 }).notNull().default("UTC"),
   logoUrl: text("logo_url"),
   bannerUrl: text("banner_url"),
-  createdAt: ts("created_at"),
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  city: text("city"),
+  region: text("region"),
+  postalCode: text("postal_code"),
+  country: text("country"),
+  phone: text("phone"),
+  createdAt: createdAt(),
 });
 
-export const businessOwners = mysqlTable(
-  "business_owners",
-  {
-    id: uuid("id").primaryKey(),
-    userId: char("user_id", { length: 36 }).notNull(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    ownerUq: uniqueIndex("business_owners_uq").on(t.userId, t.businessId),
-    byBusiness: index("business_owners_business_idx").on(t.businessId),
-  }),
-);
-
-export const businessInvites = mysqlTable(
-  "business_invites",
-  {
-    id: uuid("id").primaryKey(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    email: varchar("email", { length: 320 }).notNull(),
-    invitedBy: char("invited_by", { length: 36 }).notNull(),
-    acceptedAt: timestamp("accepted_at", { fsp: 3 }),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    inviteUq: uniqueIndex("business_invites_uq").on(t.businessId, t.email),
-    byEmail: index("business_invites_email_idx").on(t.email),
-  }),
-);
-
-export const businessHours = mysqlTable(
-  "business_hours",
-  {
-    id: uuid("id").primaryKey(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    weekday: tinyint("weekday").notNull(), // 0=Sun..6=Sat
-    openMinute: int("open_minute").notNull(),
-    closeMinute: int("close_minute").notNull(),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    byBusiness: index("business_hours_business_idx").on(t.businessId),
-  }),
-);
-
-export const businessClosures = mysqlTable("business_closures", {
-  id: uuid("id").primaryKey(),
-  businessId: char("business_id", { length: 36 }).notNull(),
-  fromDate: varchar("from_date", { length: 10 }).notNull(), // YYYY-MM-DD
-  toDate: varchar("to_date", { length: 10 }).notNull(),
-  reason: text("reason"),
-  createdAt: ts("created_at"),
+export const serviceCategories = pgTable("service_categories", {
+  id: id(),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
 });
 
-// ---------- Services ----------
-export const serviceCategories = mysqlTable("service_categories", {
-  id: uuid("id").primaryKey(),
-  businessId: char("business_id", { length: 36 }).notNull(),
-  name: varchar("name", { length: 240 }).notNull(),
-  sortOrder: int("sort_order").notNull().default(0),
-  createdAt: ts("created_at"),
+export const services = pgTable("services", {
+  id: id(),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  categoryId: uuid("category_id").references(() => serviceCategories.id, {
+    onDelete: "set null",
+  }),
+  name: text("name").notNull(),
+  durationMin: integer("duration_min").notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull().default("0"),
+  description: text("description"),
+  active: boolean("active").notNull().default(true),
+  availableFrom: timestamp("available_from", { withTimezone: true }),
+  createdAt: createdAt(),
 });
 
-export const services = mysqlTable(
-  "services",
-  {
-    id: uuid("id").primaryKey(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    categoryId: char("category_id", { length: 36 }),
-    name: varchar("name", { length: 240 }).notNull(),
-    description: text("description"),
-    durationMin: int("duration_min").notNull(),
-    price: decimal("price", { precision: 12, scale: 2 }).notNull().default("0"),
-    active: boolean("active").notNull().default(true),
-    availableFrom: timestamp("available_from", { fsp: 3 }),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    byBusiness: index("services_business_idx").on(t.businessId),
-  }),
-);
+export const staff = pgTable("staff", {
+  id: id(),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: createdAt(),
+});
 
-// ---------- Staff ----------
-export const staff = mysqlTable(
-  "staff",
-  {
-    id: uuid("id").primaryKey(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    name: varchar("name", { length: 240 }).notNull(),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    byBusiness: index("staff_business_idx").on(t.businessId),
-  }),
-);
-
-export const staffServices = mysqlTable(
+export const staffServices = pgTable(
   "staff_services",
   {
-    staffId: char("staff_id", { length: 36 }).notNull(),
-    serviceId: char("service_id", { length: 36 }).notNull(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.staffId, t.serviceId] }),
   }),
 );
 
-export const availabilities = mysqlTable(
-  "availabilities",
-  {
-    id: uuid("id").primaryKey(),
-    staffId: char("staff_id", { length: 36 }).notNull(),
-    weekday: tinyint("weekday").notNull(),
-    startMinute: int("start_minute").notNull(),
-    endMinute: int("end_minute").notNull(),
-  },
-  (t) => ({
-    byStaff: index("availabilities_staff_idx").on(t.staffId),
-  }),
-);
+export const availabilities = pgTable("availabilities", {
+  id: id(),
+  staffId: uuid("staff_id")
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+  weekday: smallint("weekday").notNull(),
+  startMinute: integer("start_minute").notNull(),
+  endMinute: integer("end_minute").notNull(),
+});
 
-export const timeBlocks = mysqlTable(
-  "time_blocks",
-  {
-    id: uuid("id").primaryKey(),
-    staffId: char("staff_id", { length: 36 }).notNull(),
-    startAt: timestamp("start_at", { fsp: 3 }).notNull(),
-    endAt: timestamp("end_at", { fsp: 3 }).notNull(),
-    reason: text("reason"),
-  },
-  (t) => ({
-    byStaffStart: index("time_blocks_staff_start_idx").on(t.staffId, t.startAt),
-  }),
-);
+export const timeBlocks = pgTable("time_blocks", {
+  id: id(),
+  staffId: uuid("staff_id")
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+});
 
-// ---------- Bookings + slot locks ----------
-export const bookings = mysqlTable(
-  "bookings",
-  {
-    id: uuid("id").primaryKey(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    serviceId: char("service_id", { length: 36 }).notNull(),
-    staffId: char("staff_id", { length: 36 }).notNull(),
-    customerName: varchar("customer_name", { length: 240 }).notNull(),
-    customerEmail: varchar("customer_email", { length: 320 }).notNull(),
-    customerPhone: varchar("customer_phone", { length: 40 }),
-    startAt: timestamp("start_at", { fsp: 3 }).notNull(),
-    endAt: timestamp("end_at", { fsp: 3 }).notNull(),
-    status: mysqlEnum("status", ["confirmed", "cancelled"])
-      .notNull()
-      .default("confirmed"),
-    createdAt: ts("created_at"),
-  },
-  (t) => ({
-    staffStart: index("bookings_staff_start_idx").on(t.staffId, t.startAt),
-    business: index("bookings_business_idx").on(t.businessId),
-  }),
-);
-
-export const slotLocks = mysqlTable(
+export const slotLocks = pgTable(
   "slot_locks",
   {
-    id: uuid("id").primaryKey(),
-    holderSessionId: varchar("holder_session_id", { length: 64 }).notNull(),
-    staffId: char("staff_id", { length: 36 }).notNull(),
-    serviceId: char("service_id", { length: 36 }).notNull(),
-    startAt: timestamp("start_at", { fsp: 3 }).notNull(),
-    endAt: timestamp("end_at", { fsp: 3 }).notNull(),
-    expiresAt: timestamp("expires_at", { fsp: 3 }).notNull(),
-    createdAt: ts("created_at"),
+    id: id(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    holderSessionId: text("holder_session_id").notNull(),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => ({
-    // Replaces the Postgres ON CONFLICT (staff_id, start_at) target
     staffStartUq: uniqueIndex("slot_locks_staff_start_uq").on(
       t.staffId,
       t.startAt,
     ),
-    expires: index("slot_locks_expires_idx").on(t.expiresAt),
+    holderIdx: index("slot_locks_holder_idx").on(t.holderSessionId),
+    expiresIdx: index("slot_locks_expires_idx").on(t.expiresAt),
   }),
 );
 
-// ---------- Invoices ----------
-// Note: 18-month retention via cleanup cron is dropped per plan.
-// The expiresAt column is kept so a future Lambda/EventBridge can sweep it.
-export const invoices = mysqlTable(
-  "invoices",
+export const bookings = pgTable(
+  "bookings",
   {
-    id: uuid("id").primaryKey(),
-    invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
-    businessId: char("business_id", { length: 36 }).notNull(),
-    bookingId: char("booking_id", { length: 36 }).notNull().unique(),
-    staffId: char("staff_id", { length: 36 }),
-    serviceId: char("service_id", { length: 36 }),
-    serviceName: varchar("service_name", { length: 240 }).notNull(),
-    staffName: varchar("staff_name", { length: 240 }),
-    customerName: varchar("customer_name", { length: 240 }).notNull(),
-    customerEmail: varchar("customer_email", { length: 320 }).notNull(),
-    customerPhone: varchar("customer_phone", { length: 40 }),
-    amount: decimal("amount", { precision: 12, scale: 2 }).notNull().default("0"),
-    tax: decimal("tax", { precision: 12, scale: 2 }).notNull().default("0"),
-    total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
-    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
-    status: varchar("status", { length: 32 }).notNull().default("issued"),
-    appointmentAt: timestamp("appointment_at", { fsp: 3 }).notNull(),
-    issuedAt: ts("issued_at"),
-    expiresAt: timestamp("expires_at", { fsp: 3 })
+    id: id(),
+    businessId: uuid("business_id")
       .notNull()
-      .default(sql`(CURRENT_TIMESTAMP(3) + INTERVAL 18 MONTH)`),
-    createdAt: ts("created_at"),
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerPhone: text("customer_phone"),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("confirmed"),
+    createdAt: createdAt(),
   },
   (t) => ({
-    business: index("invoices_business_idx").on(t.businessId),
-    customer: index("invoices_customer_email_idx").on(t.customerEmail),
+    staffStartUq: uniqueIndex("bookings_staff_start_uq").on(
+      t.staffId,
+      t.startAt,
+    ),
+    staffTimeIdx: index("bookings_staff_time_idx").on(t.staffId, t.startAt),
   }),
 );
 
-export type AppRole = "customer" | "provider";
+export const appUsers = pgTable("app_users", {
+  id: id(),
+  cognitoSub: text("cognito_sub").notNull().unique(),
+  email: text("email").notNull().unique(),
+  role: appRole("role").notNull(),
+  createdAt: createdAt(),
+});
+
+export const customerProfiles = pgTable("customer_profiles", {
+  id: id(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => appUsers.id, { onDelete: "cascade" }),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const providerProfiles = pgTable("provider_profiles", {
+  id: id(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => appUsers.id, { onDelete: "cascade" }),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const businessOwners = pgTable(
+  "business_owners",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    userBusinessUq: uniqueIndex("business_owners_user_business_uq").on(
+      t.userId,
+      t.businessId,
+    ),
+  }),
+);
+
+export const businessHours = pgTable(
+  "business_hours",
+  {
+    id: id(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    weekday: smallint("weekday").notNull(),
+    openMinute: integer("open_minute").notNull(),
+    closeMinute: integer("close_minute").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    businessWeekdayUq: uniqueIndex("business_hours_business_weekday_uq").on(
+      t.businessId,
+      t.weekday,
+    ),
+  }),
+);
+
+export const businessClosures = pgTable("business_closures", {
+  id: id(),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  reason: text("reason"),
+  createdAt: createdAt(),
+});
+
+export const businessInvites = pgTable(
+  "business_invites",
+  {
+    id: id(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  },
+  (t) => ({
+    businessEmailUq: uniqueIndex("business_invites_business_email_uq").on(
+      t.businessId,
+      t.email,
+    ),
+  }),
+);
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: id(),
+    invoiceNumber: text("invoice_number").notNull().unique(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    serviceId: uuid("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
+    serviceName: text("service_name").notNull(),
+    staffName: text("staff_name"),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerPhone: text("customer_phone"),
+    amount: numeric("amount").notNull().default("0"),
+    tax: numeric("tax").notNull().default("0"),
+    total: numeric("total").notNull().default("0"),
+    currency: text("currency").notNull().default("USD"),
+    status: text("status").notNull().default("issued"),
+    appointmentAt: timestamp("appointment_at", { withTimezone: true }).notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '18 months'`),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    businessIdx: index("invoices_business_idx").on(
+      t.businessId,
+      t.issuedAt,
+    ),
+    bookingIdx: index("invoices_booking_idx").on(t.bookingId),
+    expiryIdx: index("invoices_expiry_idx").on(t.expiresAt),
+  }),
+);

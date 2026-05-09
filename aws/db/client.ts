@@ -1,30 +1,34 @@
-/**
- * MySQL connection pool + Drizzle instance.
- * Server-only — never import from client code.
- */
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import * as schema from "./schema";
+
+const { Pool } = pg;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __mysqlPool: mysql.Pool | undefined;
+  var __pgPool: pg.Pool | undefined;
 }
 
-function getPool(): mysql.Pool {
-  if (globalThis.__mysqlPool) return globalThis.__mysqlPool;
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
-  const pool = mysql.createPool({
-    uri: url,
-    waitForConnections: true,
-    connectionLimit: 10,
-    enableKeepAlive: true,
-    timezone: "Z", // store/read UTC
+function getPool(): pg.Pool {
+  if (globalThis.__pgPool) return globalThis.__pgPool;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  globalThis.__pgPool = new Pool({
+    connectionString,
+    ssl: {
+      rejectUnauthorized: false,
+    },
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
   });
-  globalThis.__mysqlPool = pool;
-  return pool;
+
+  return globalThis.__pgPool;
 }
 
-export const db = drizzle(getPool(), { schema, mode: "default" });
+export const db = drizzle(getPool(), { schema });
 export { schema };

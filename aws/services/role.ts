@@ -1,65 +1,52 @@
-/**
- * Port of has_role + assign_my_role RPCs.
- *
- * Note: assign_my_role's customer→provider upgrade-via-invite flow is
- * simplified here. Wire `acceptPendingBusinessInvites` from business.ts
- * into the login callback to recreate the original behavior.
- */
-import { and, eq } from "drizzle-orm";
-import { db } from "../db/client";
-import { userRoles, type AppRole } from "../db/schema";
-import { businessOwners } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/aws/db/client";
 
-export async function hasRole(userSub: string, role: AppRole): Promise<boolean> {
-  const rows = await db
-    .select({ id: userRoles.id })
-    .from(userRoles)
-    .where(and(eq(userRoles.userId, userSub), eq(userRoles.role, role)))
-    .limit(1);
-  return rows.length > 0;
-}
+export type AppRole = "customer" | "provider";
 
-export async function getMyRole(userSub: string): Promise<AppRole | null> {
+export async function getUserRole(userId: string): Promise<AppRole | null> {
   const rows = await db
-    .select({ role: userRoles.role })
-    .from(userRoles)
-    .where(eq(userRoles.userId, userSub))
+    .select({ role: schema.appUsers.role })
+    .from(schema.appUsers)
+    .where(eq(schema.appUsers.id, userId))
     .limit(1);
+
   return rows[0]?.role ?? null;
 }
 
-export async function assignMyRole(opts: {
-  userSub: string;
-  role: AppRole;
-}): Promise<void> {
-  if (opts.role !== "customer" && opts.role !== "provider") {
-    throw new Error("invalid_role");
-  }
-  const existing = await getMyRole(opts.userSub);
-  if (existing === null) {
-    await db.insert(userRoles).values({
-      id: crypto.randomUUID(),
-      userId: opts.userSub,
-      role: opts.role,
-    });
-    return;
-  }
-  if (existing === opts.role) return;
+export async function getUserRoleByCognitoSub(
+  cognitoSub: string,
+): Promise<AppRole | null> {
+  const rows = await db
+    .select({ role: schema.appUsers.role })
+    .from(schema.appUsers)
+    .where(eq(schema.appUsers.cognitoSub, cognitoSub))
+    .limit(1);
 
-  // Allow customer → provider upgrade if the user owns at least one business.
-  if (existing === "customer" && opts.role === "provider") {
-    const owns = await db
-      .select({ id: businessOwners.id })
-      .from(businessOwners)
-      .where(eq(businessOwners.userId, opts.userSub))
-      .limit(1);
-    if (owns.length) {
-      await db
-        .update(userRoles)
-        .set({ role: "provider" })
-        .where(eq(userRoles.userId, opts.userSub));
-      return;
-    }
-  }
-  throw new Error("role_already_assigned");
+  return rows[0]?.role ?? null;
+}
+
+export async function setUserRole(input: {
+  userId: string;
+  role: AppRole;
+}) {
+  const rows = await db
+    .update(schema.appUsers)
+    .set({ role: input.role })
+    .where(eq(schema.appUsers.id, input.userId))
+    .returning();
+
+  return rows[0] ?? null;
+}
+
+export async function setUserRoleByCognitoSub(input: {
+  cognitoSub: string;
+  role: AppRole;
+}) {
+  const rows = await db
+    .update(schema.appUsers)
+    .set({ role: input.role })
+    .where(eq(schema.appUsers.cognitoSub, input.cognitoSub))
+    .returning();
+
+  return rows[0] ?? null;
 }
