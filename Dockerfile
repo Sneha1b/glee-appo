@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.7
-FROM oven/bun:1 AS deps
+FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json bun.lockb ./
-RUN bun install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
-FROM oven/bun:1 AS build
+FROM node:20-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN bun run build
+RUN npm run build
 
 FROM node:20-slim AS runtime
 WORKDIR /app
