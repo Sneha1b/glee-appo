@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getBookingDetails } from "../../aws/services/bookings";
+import { getBookingDetails } from "../../../aws/services/bookings";
 import {
   getInvoiceByBookingId,
   createInvoice,
-} from "../../aws/services/invoices";
+} from "../../../aws/services/invoices";
 
 // POST /api/booking/:bookingId — finalize (mock) payment + create invoice.
 // GET /api/booking/:bookingId — fetch booking details.
