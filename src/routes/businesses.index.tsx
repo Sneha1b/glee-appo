@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { listBusinessesPublic } from "@/lib/businesses.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,16 +28,15 @@ type Biz = {
 };
 
 function Businesses() {
+  const fetchAll = useServerFn(listBusinessesPublic);
   const [rows, setRows] = useState<Biz[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("businesses")
-      .select("id,name,category,description,logo_url,city,region")
-      .order("name")
-      .then(({ data }) => { setRows((data as Biz[]) ?? []); setLoading(false); });
-  }, []);
+    fetchAll()
+      .then((r) => { setRows(r as Biz[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [fetchAll]);
 
   return (
     <div className="min-h-screen bg-background">

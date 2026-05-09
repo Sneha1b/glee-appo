@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { listRecentBusinessesPublic } from "@/lib/businesses.functions";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,16 +36,14 @@ type Biz = {
 
 function Landing() {
   const { user, role, customerProfile, signOut } = useAuth();
+  const fetchRecent = useServerFn(listRecentBusinessesPublic);
   const [businesses, setBusinesses] = useState<Biz[]>([]);
 
   useEffect(() => {
-    supabase
-      .from("businesses")
-      .select("id,name,category,description,logo_url,banner_url,city,region")
-      .order("created_at", { ascending: false })
-      .limit(8)
-      .then(({ data }) => setBusinesses((data as Biz[]) ?? []));
-  }, []);
+    fetchRecent({ data: { limit: 8 } })
+      .then((rows) => setBusinesses(rows as Biz[]))
+      .catch((e) => console.warn("listRecentBusinesses failed", e));
+  }, [fetchRecent]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
