@@ -4,7 +4,7 @@ set -euo pipefail
 # ── Config ────────────────────────────────────────────────────────────────────
 EC2_HOST="54.162.176.5"
 EC2_USER="ec2-user"
-KEY_FILE="${KEY_FILE:-~/schedora-key.pem}"   # override with: KEY_FILE=~/other.pem ./deploy.sh
+KEY_FILE="${KEY_FILE:-~/Downloads/schedora-key.pem}"   # override with: KEY_FILE=~/other.pem ./deploy.sh
 
 AWS_REGION="us-east-1"
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
