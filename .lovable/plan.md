@@ -1,210 +1,128 @@
-# Deploying Schedora to AWS — Free Tier, No Domain, No Data Migration
+## Test Plan — Validate `aws-finish_v3.patch` (Backends + Server-Fn Wrappers)
 
-Goal: get the app running on a brand-new AWS account at **$0/month** for the first 12 months, accessible via an AWS-provided URL — no domain purchase, no data migration from Supabase. You'll re-create dummy data after deploy.
+This plan exercises the data layer **before any UI is migrated**, so issues with Drizzle schema, MySQL semantics, Cognito wiring, and TanStack server-fn boundaries are caught while changes are cheap. UI on `aws-deploy` continues to run against Supabase until v4/v5.
 
----
+### Scope under test (delivered by v3)
 
-## What "free" means on AWS
+- New backend modules in `aws/services/`: `services.ts`, `staff.ts`, `hours.ts`, `bookings.ts` (extends), `invoices.ts`, `metrics.ts`
+- New server-fn wrappers in `src/aws/`: `services.functions.ts`, `staff.functions.ts`, `hours.functions.ts`, `bookings.functions.ts`, `invoices.functions.ts`, `metrics.functions.ts`
+- Existing wrappers remain untouched: `auth/role/customer/business`
 
-**12-month free tier** (new accounts):
-- **EC2**: 750 hrs/mo `t3.micro`
-- **RDS**: 750 hrs/mo `db.t3.micro` MySQL, 20 GB storage
-- **S3**: 5 GB, 20k GET, 2k PUT
-- **Data out**: 100 GB/mo
+### Pre-flight (one-time)
 
-**Always free**:
-- **Cognito**: 10k MAU
-- **Lambda**: 1M req/mo
-
-**Avoid (cost money even on free tier)**:
-- NAT Gateway (~$32/mo) → put EC2 in a public subnet
-- ALB (~$18/mo) → users hit EC2 directly
-- Route 53 hosted zone (~$0.50/mo) → no domain needed
-- Secrets Manager (~$0.40/secret/mo) → use plain env vars on the box
-
----
-
-## Architecture
-
-```text
-users → http(s) → EC2 t3.micro (public subnet)
-                    ├── Caddy (port 80/443, auto Let's Encrypt)
-                    ├── Docker: Schedora SSR (port 3000)
-                    └── private SG to ↓
-                  RDS db.t3.micro MySQL (empty schema, no data import)
-
-S3 bucket (business-images, public read)
-Cognito User Pool (auth)
-```
-
-URL: `https://<ip>.nip.io` (free wildcard DNS that resolves to the IP — Caddy fetches a real Let's Encrypt cert automatically).
-
----
-
-## HTTPS without a domain
-
-AWS won't issue ACM certs for `*.amazonaws.com`. Options:
-1. **HTTP only** — works for demos but breaks modern browser features.
-2. **`nip.io` + Caddy** ← recommended. Zero cost, real HTTPS, no signup. URL like `https://3-91-12-34.nip.io`.
-3. **Self-signed cert** — scary browser warnings.
-
----
-
-## Step-by-step
-
-### 1. Repo prep (the real work, ~2–3 weeks)
-
-1. Add `Dockerfile` (Node 20 base, `node .output/server/index.mjs`, port 3000).
-2. Add `/api/health` route returning 200.
-3. Remove `wrangler.jsonc` and Cloudflare bits from `vite.config.ts`; emit Node SSR target.
-4. **Replace the Supabase layer** (this is the bulk of the work):
-   - **DB**: Drizzle ORM against MySQL 8. Port the Postgres schema → MySQL (`uuid`→`CHAR(36)`, `gen_random_uuid()`→`(UUID())`, `timestamptz`→`TIMESTAMP`, `tstzrange`→explicit predicates, `jsonb`→`JSON`, `enum`→MySQL `ENUM(...)`).
-   - **RLS gone** → all auth checks move into TypeScript service functions / route middleware.
-   - **RPCs** (`acquire_slot_lock`, `confirm_booking`, `assign_my_role`, `get_booked_slots`, etc.) → re-implement as transactions with `SELECT ... FOR UPDATE`.
-   - **Auth**: Amazon Cognito User Pool replaces Supabase Auth. Sign-in via `InitiateAuthCommand` / `USER_PASSWORD_AUTH`, session in httpOnly cookie.
-   - **Storage**: presigned S3 PUT URLs from a server function.
-   - **Drop email + cron** (already decided in earlier phases).
-
-### 2. Create AWS resources (Console clicks, ~1 hour)
-
-**Cognito**: Create User Pool → email + password, self-service signup, auto-confirm ON. Save `User Pool ID` + `App Client ID`.
-
-**S3**: Create bucket `schedora-images-<rand>`, public-read policy on `GetObject`, CORS for your EC2 hostname.
-
-**VPC**: Use the **default VPC** — comes free with every account.
-
-**RDS**: Create database → MySQL 8.0 → **Free tier** template → `db.t3.micro` → 20 GB gp3 → Multi-AZ **No** → Public access **No** → SG allows 3306 from EC2's SG only. Save master password to a text file.
-
-**EC2**: Launch instance → Amazon Linux 2023 → `t3.micro` → default VPC public subnet → auto-assign public IP → SG opens 22 (your IP), 80, 443 → 30 GB gp3 storage → create key pair, download `.pem`. Attach IAM role with `AmazonS3FullAccess` + Cognito permissions.
-
-### 3. Set up the EC2 box (~20 min)
-
-```bash
-ssh -i schedora.pem ec2-user@<public-dns>
-
-sudo dnf install -y docker
-sudo systemctl enable --now docker
-sudo usermod -aG docker ec2-user
-
-# Caddy for free auto-HTTPS via nip.io
-sudo dnf install -y 'dnf-command(copr)'
-sudo dnf copr enable -y @caddy/caddy
-sudo dnf install -y caddy
-```
-
-`/etc/caddy/Caddyfile`:
-```text
-<public-ip>.nip.io {
-    reverse_proxy localhost:3000
-}
-```
-
-```bash
-sudo systemctl enable --now caddy
-```
-
-### 4. Deploy the app
-
-```bash
-# On your laptop
-docker build -t schedora .
-docker save schedora | gzip > schedora.tar.gz
-scp -i schedora.pem schedora.tar.gz ec2-user@<dns>:~
-
-# On EC2
-docker load < schedora.tar.gz
-docker run -d --name schedora --restart unless-stopped \
-  -p 3000:3000 \
-  -e DATABASE_URL='mysql://admin:<pw>@<rds-endpoint>:3306/schedora' \
-  -e COGNITO_USER_POOL_ID=... \
-  -e COGNITO_CLIENT_ID=... \
-  -e S3_BUCKET=schedora-images-xxxx \
-  -e AWS_REGION=us-east-1 \
-  schedora
-```
-
-### 5. Initialize the database (schema only, no data import)
-
-From EC2 (RDS is private):
-```bash
-mysql -h <rds-endpoint> -u admin -p
-> CREATE DATABASE schedora;
-> exit
-
-# Run Drizzle migrations to create empty tables
-docker exec schedora bun run db:migrate
-```
-
-That's it for the database. **No `pg_dump`, no data transformation, no Cognito user import.** You start with a clean schema.
-
-### 6. Re-create dummy data
-
-Two ways, pick whichever feels easier:
-
-**Option A — through the UI** (recommended, validates the full flow):
-1. Open `https://<ip>.nip.io`
-2. Sign up a provider account → create a business → add staff, services, hours
-3. Sign up a customer account → book an appointment
-
-**Option B — seed script** (faster, repeatable):
-- Add `scripts/seed.ts` that uses Drizzle + Cognito Admin SDK to insert users, businesses, services, etc.
-- Run once: `docker exec schedora bun run scripts/seed.ts`
-- Useful if you'll redeploy frequently.
-
-### 7. Smoke test
-
-Sign up provider → create business → upload logo (S3) → create service → book as customer → confirm booking saves to RDS.
-
----
-
-## Cost
-
-| | Free tier (12 mo) | After |
+| # | Step | Command |
 |---|---|---|
-| EC2 t3.micro 24/7 | $0 | ~$7.50 |
-| RDS db.t3.micro 24/7 + 20 GB | $0 | ~$17 |
-| S3 (small) | $0 | pennies |
-| Cognito (<10k MAU) | $0 always | $0 |
-| Caddy / nip.io | $0 always | $0 |
-| **Total** | **$0/mo** | **~$25/mo** |
+| P1 | Local MySQL 8 + Cognito user pool reachable | `mysql -h $RDS -u admin -p$PASS -e 'SELECT 1'` |
+| P2 | `.env.aws` populated (DATABASE_URL, COGNITO_*, AWS_REGION, S3_BUCKET, SESSION_SECRET ≥ 32 chars) | `grep -c = .env.aws` ≥ 7 |
+| P3 | Drizzle migrations generated and applied | `bunx drizzle-kit generate --config aws/drizzle.config.ts && bun aws/db/migrate.ts` |
+| P4 | Two Cognito test users created (one provider, one customer), email-confirmed | AWS CLI `cognito-idp admin-create-user` + `admin-set-user-password` |
 
 ---
 
-## What you give up
+## Test suites
 
-| Production | Free-tier |
-|---|---|
-| Multi-AZ RDS | Single AZ; if AZ fails, downtime |
-| ECS Fargate autoscaling | One EC2 box |
-| ALB + zero-downtime deploys | `docker stop && docker run` (~10s downtime) |
-| CloudFront CDN | Direct EC2 hits |
-| Custom domain + ACM | `*.nip.io` URL |
-| Secrets Manager | Plaintext env vars on the box |
-| GitHub Actions CI/CD | Manual `scp` + `docker run` |
-| **Existing Supabase data** | **Empty DB, you re-seed** |
+### Suite 1 — Static / build (5 min)
 
-Fine for: demos, learning, MVPs, internal tools.
-Not fine for: paying customers, regulated data, anything that can't tolerate a few hours down.
+| ID | Test | Command | Pass criteria |
+|---|---|---|---|
+| 1.1 | Type-check passes | `bunx tsc --noEmit` | exit 0, zero errors |
+| 1.2 | ESLint clean on new files | `bun run lint -- src/aws aws/services` | exit 0 |
+| 1.3 | No client-bundle leak of `*.server.ts` or admin clients | `bunx vite build --config vite.config.aws.ts` | build succeeds; grep client chunks for `mysql2`, `aws-sdk`, `client.server` → **zero matches** |
+| 1.4 | Server-fn split intact (no sibling-helper ReferenceErrors) | `rg -n "^(function|const) " src/aws/*.functions.ts \| grep -v createServerFn` | only `import` lines and `createServerFn` declarations — no plain helpers |
+| 1.5 | Docker image builds | `docker build -t schedora-aws .` | exit 0, final image < 350 MB |
+
+### Suite 2 — Schema & migrations (10 min)
+
+| ID | Test | Pass criteria |
+|---|---|---|
+| 2.1 | All 16 tables exist after `migrate.ts` | `SHOW TABLES` returns ≥ 16 rows including `services`, `staff`, `staff_services`, `availabilities`, `time_blocks`, `business_hours`, `business_closures`, `invoices`, `slot_locks` |
+| 2.2 | UUID defaults work | `INSERT INTO businesses (name) VALUES ('t');` then `SELECT id FROM businesses` returns 36-char UUID |
+| 2.3 | `slot_locks_staff_start_uq` enforces upsert | Two inserts with same `(staff_id, start_at)` → second is ON DUPLICATE KEY UPDATE, row count stays 1 |
+| 2.4 | Invoice `expires_at` defaults to +18 months | `SELECT TIMESTAMPDIFF(MONTH, NOW(3), expires_at)` = 18 |
+| 2.5 | Re-running migrate is idempotent | second `bun aws/db/migrate.ts` → exit 0, no schema drift |
+
+### Suite 3 — Server function smoke (15 min)
+
+Run the AWS build and exercise each new wrapper via HTTP. The test driver below requires no UI.
+
+```bash
+# Start the AWS build locally
+docker run --env-file .env.aws -p 3000:3000 schedora-aws &
+until curl -sf http://localhost:3000/api/health; do sleep 2; done
+
+# Get a Cognito session cookie (uses signInFn)
+COOKIE=$(curl -sS -i -X POST http://localhost:3000/_serverFn/signInFn \
+  -H 'Content-Type: application/json' \
+  -d '{"data":{"email":"prov@test.local","password":"Provider1!"}}' \
+  | awk '/^set-cookie:/ {print $2}' | head -1)
+```
+
+| ID | Server fn | Driver | Pass criteria |
+|---|---|---|---|
+| 3.1 | `meFn` (already in v2) | `curl … -b $COOKIE _serverFn/meFn` | returns `{ user: { sub, email }, role: null }` for fresh user |
+| 3.2 | `assignMyRoleFn` (v2) | POST `{role:'provider'}` | row appears in `user_roles`; second call with same role → idempotent (no error) |
+| 3.3 | `createBusinessFn` (v2) | POST `{name:'Acme'}` | returns `{id}`; row in `businesses` + `business_owners` |
+| 3.4 | **`createServiceFn` (new)** | POST `{businessId, name:'Cut', durationMin:30, price:'25.00'}` | row in `services` with `active=true`, returns id |
+| 3.5 | **`listServicesFn` (new)** | GET `?businessId=…` | returns array including the row from 3.4 |
+| 3.6 | **`createStaffFn` + `linkStaffServiceFn` (new)** | sequential | `staff` + `staff_services` rows present, composite PK enforced (second link → no dup) |
+| 3.7 | **`upsertHoursFn` (new)** | POST `[{weekday:1, openMinute:540, closeMinute:1020}, …×7]` | `business_hours` has exactly 7 rows for the business |
+| 3.8 | **`createTimeBlockFn` (new)** | POST `{staffId, startAt, endAt, reason}` | row appears; index `time_blocks_staff_start_idx` used (`EXPLAIN` shows non-ALL) |
+| 3.9 | **`getAvailableSlotsFn` (new — wraps `slots.ts`)** | GET `?staffId&serviceId&date` | returns slot list; matches existing `src/lib/slots.ts` output for the same fixture (parity check) |
+| 3.10 | **`acquireLockFn` → `confirmBookingFn` (new)** | sequential | booking row created, lock row deleted, returns `bookingId` |
+| 3.11 | Concurrent lock contention | 5 parallel `acquireLockFn` for same slot | exactly 1 succeeds; others get `slot_locked` |
+| 3.12 | **`createInvoiceFn` (new)** | POST `{bookingId}` | invoice row created with `invoice_number` unique, `status='issued'`, `expires_at` ≈ +18mo |
+| 3.13 | **`listInvoicesFn` (new)** | GET `?businessId` | returns the invoice from 3.12 |
+| 3.14 | **`getBusinessMetricsFn` (new)** | GET `?businessId&from&to` | returns `{bookingCount, revenueCents, topServices[]}`; numbers match raw SQL |
+| 3.15 | Auth gate enforced | call any wrapper **without** cookie | HTTP 401, no DB write |
+| 3.16 | Cross-tenant denied | provider A calls `createServiceFn` on provider B's businessId | HTTP 403, no row written |
+
+### Suite 4 — Behavioural parity vs Supabase (15 min)
+
+Run the **same fixture** against the existing Supabase preview and the new AWS build, diff the outputs.
+
+| ID | Operation | Comparator | Pass criteria |
+|---|---|---|---|
+| 4.1 | Slot generation for one staff/day | JSON output of `getAvailableSlotsFn` vs the equivalent from `src/lib/slots.ts` against Supabase data | identical slot list (start times, available flags) |
+| 4.2 | Booking confirmation atomicity | acquire → confirm under both stacks | both produce a single booking row, lock removed |
+| 4.3 | Invoice number monotonicity | issue 10 invoices on AWS | numbers strictly increasing, no duplicates (covered by `unique` constraint) |
+| 4.4 | Hours upsert overwrites prior week | call `upsertHoursFn` twice with different shapes | second call's rows replace first; row count still 7 |
+
+### Suite 5 — Regression on Supabase preview (5 min)
+
+v3 adds files but must NOT touch any Supabase importer.
+
+| ID | Test | Pass criteria |
+|---|---|---|
+| 5.1 | Lovable preview still boots | open preview URL | landing page renders, no console errors |
+| 5.2 | Provider login → admin dashboard still works on Supabase | manual click-through | bookings tab loads as before |
+| 5.3 | `git diff main...aws-deploy -- src/components src/routes` | no changes from v3 in the diff (only v2 changes) |
 
 ---
 
-## Realistic timeline
+## Definition of Done (success criteria for v3)
 
-| Phase | Effort |
-|---|---|
-| Dockerfile + remove Cloudflare + health route | 1–2 days |
-| Supabase → MySQL/Cognito/S3 rewrite | 2–3 weeks (unavoidable) |
-| AWS console setup | 1–2 hours |
-| Deploy + Caddy + smoke test | half a day |
-| Seed dummy data | 1–2 hours |
-| **Total** | **~3 weeks** (rewrite dominates) |
+The patch is accepted when **all of the following are true**:
+
+1. **Suite 1**: 5/5 pass — code compiles, lints, builds, Docker image healthy, no Node-only deps in client bundle.
+2. **Suite 2**: 5/5 pass — schema applies cleanly and is idempotent.
+3. **Suite 3**: 16/16 server functions pass — including auth gate (3.15) and tenant isolation (3.16). **These two are blockers; failure means a security regression vs Supabase RLS.**
+4. **Suite 4**: 4/4 parity tests pass — slot generation and booking semantics behave identically to Supabase.
+5. **Suite 5**: Supabase preview unaffected (no Supabase regressions because v3 adds files only).
+6. **Performance**: median latency on `getAvailableSlotsFn` ≤ 150 ms locally; `confirmBookingFn` ≤ 250 ms.
+7. **No leaked secrets**: `bunx vite build … && rg -n "(mysql://|cognito-idp|aws_access_key|SESSION_SECRET)" .output/public dist` → zero matches.
+
+If any blocker (3.15, 3.16, 1.3, 5.x) fails, **do not proceed to v4**. Fix in v3 first.
 
 ---
 
-## Recommendation
+## Test artifacts to deliver alongside v3
 
-Skipping data migration saves ~3 days of `pg_dump` → MySQL transform → Cognito bulk import work, plus the password-reset flow for migrated users. The 3-week Supabase-rewrite cost is unchanged either way.
+To make this plan executable in one shot, v3 should ship with:
 
-If your only goal is "see it running on AWS for free," this plan delivers that. If you'll later want production AWS (Multi-AZ, ALB, custom domain), the rewrite work transfers 1:1 — only the infra layer changes.
+- `aws/tests/smoke.sh` — bash driver that runs Suite 3 end-to-end against a running container
+- `aws/tests/fixtures.sql` — seed for one business, one staff, one service, one customer
+- `aws/tests/parity.ts` — Node script for Suite 4 (calls both stacks, diffs JSON)
+- `aws/tests/README.md` — how to run each suite
 
-Want me to start with the Dockerfile + health route + Cloudflare removal PR, or scaffold the Drizzle MySQL schema first?
+### Estimated total runtime
+~50 minutes for a full pass; ~10 minutes for the smoke subset (Suites 1 + 3.1–3.10).
