@@ -18,7 +18,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Copy only the built server output
+# Install production dependencies
+COPY --from=build /app/package.json ./
+RUN npm install --omit=dev --ignore-scripts
+
+# Copy built output
 COPY --from=build /app/dist ./dist
 
 # Non-root user
