@@ -132,3 +132,23 @@ export async function getOptionalUser(): Promise<AuthedUser | null> {
     return null;
   }
 }
+
+/**
+ * Verifies the current user owns the given business. Throws 403 if not.
+ * Returns the AuthedUser for chaining.
+ */
+export async function assertBusinessOwner(businessId: string): Promise<AuthedUser> {
+  const u = await requireUser();
+  const rows = await db
+    .select({ id: schema.businessOwners.id })
+    .from(schema.businessOwners)
+    .where(
+      and(
+        eq(schema.businessOwners.userId, u.appUser.id),
+        eq(schema.businessOwners.businessId, businessId),
+      ),
+    )
+    .limit(1);
+  if (!rows[0]) throw new Response("Forbidden", { status: 403 });
+  return u;
+}
