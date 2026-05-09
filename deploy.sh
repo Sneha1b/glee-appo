@@ -12,23 +12,55 @@ ENV_FILE="~/.env"
 
 SSH="ssh -i $KEY_FILE $EC2_USER@$EC2_HOST"
 
-echo "==> Building image for linux/amd64..."
+echo ""
+echo "╔══════════════════════════════════════════╗"
+echo "║         Schedora — Deploy to AWS         ║"
+echo "╚══════════════════════════════════════════╝"
+echo ""
+
+# Step 1
+echo "[1/5] Building Docker image for linux/amd64..."
 docker build --platform linux/amd64 -t "$IMAGE_NAME" .
+echo "      ✓ Build complete"
+echo ""
 
-echo "==> Transferring image to EC2..."
-docker save "$IMAGE_NAME" | gzip | $SSH "docker load"
+# Step 2
+echo "[2/5] Saving and compressing image..."
+echo "      (this may take a minute — image is being gzipped)"
+docker save "$IMAGE_NAME" | gzip > /tmp/schedora-aws.tar.gz
+echo "      ✓ Image saved to /tmp/schedora-aws.tar.gz"
+echo ""
 
-echo "==> Restarting container on EC2..."
+# Step 3
+echo "[3/5] Transferring image to EC2 at $EC2_HOST..."
+echo "      (transfer size: $(du -sh /tmp/schedora-aws.tar.gz | cut -f1))"
+cat /tmp/schedora-aws.tar.gz | $SSH "docker load"
+rm /tmp/schedora-aws.tar.gz
+echo "      ✓ Image loaded on EC2"
+echo ""
+
+# Step 4
+echo "[4/5] Stopping old container and starting new one..."
 $SSH "
-  docker stop $CONTAINER_NAME 2>/dev/null || true
+  echo '      Stopping old container...'
+  docker stop $CONTAINER_NAME 2>/dev/null && echo '      Old container stopped' || echo '      No running container to stop'
   docker rm   $CONTAINER_NAME 2>/dev/null || true
+  echo '      Starting new container...'
   docker run -d --name $CONTAINER_NAME --restart unless-stopped \
     --env-file $ENV_FILE -p 3000:3000 $IMAGE_NAME
+  echo '      Container started'
 "
+echo "      ✓ Container is running"
+echo ""
 
-echo "==> Container logs (last 20 lines)..."
+# Step 5
+echo "[5/5] Waiting for app to boot (3s) then checking logs..."
 sleep 3
 $SSH "docker logs --tail 20 $CONTAINER_NAME"
-
 echo ""
-echo "Done. App should be live at https://${EC2_HOST//./-}.nip.io"
+
+echo "══════════════════════════════════════════════"
+echo "  Done! App should be live at:"
+echo "  https://${EC2_HOST//./-}.nip.io"
+echo "══════════════════════════════════════════════"
+echo ""
