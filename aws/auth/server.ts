@@ -11,6 +11,8 @@ import { verifyCognitoJwt, type CognitoClaims } from "./verify";
 import { signOutEverywhere } from "./cognito";
 import { getUserByCognitoSub, upsertUserFromCognito } from "../services/users";
 import type { AppRole } from "../services/users";
+import { db, schema } from "../db/client";
+import { and, eq } from "drizzle-orm";
 
 export const ID_TOKEN_COOKIE = "schedora_id";
 export const ACCESS_TOKEN_COOKIE = "schedora_at";
