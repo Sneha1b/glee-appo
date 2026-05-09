@@ -47,9 +47,9 @@ RLS policy on `bookings` automatically restricts to `customer_id = auth.uid()`.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { desc, eq } from "drizzle-orm";
-import { db } from "@/aws/db/client";
-import { bookings, services, staff } from "@/aws/db/schema";
-import { verifyCognitoToken } from "@/aws/auth/verify";
+import { db } from "../db/client";
+import { bookings, services, staff } from "../db/schema";
+import { verifyCognitoToken } from "../auth/verify";
 
 export const listMyBookings = createServerFn({ method: "GET" }).handler(async () => {
   const cookie = getRequestHeader("cookie") ?? "";

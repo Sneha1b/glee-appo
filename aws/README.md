@@ -7,7 +7,7 @@ this up on your AWS deploy branch by:
 
 1. Updating `package.json` deps (see "Install" below).
 2. Setting env vars (see `.env.aws.example`).
-3. Replacing imports of `@/integrations/supabase/*` with `@/aws/*` in
+3. Replacing imports of `@/integrations/supabase/*` with `../*` in
    route loaders, server fns, and components, one file at a time.
 4. Deleting the `supabase/` directory and `src/integrations/supabase/`
    when the swap is complete.
