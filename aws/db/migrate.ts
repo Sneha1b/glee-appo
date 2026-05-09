@@ -2,17 +2,22 @@
  * One-shot migration runner. Called from the container entrypoint or
  * manually via:  bun run aws/db/migrate.ts
  */
-import { drizzle } from "drizzle-orm/mysql2";
-import { migrate } from "drizzle-orm/mysql2/migrator";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import pg from "pg";
+
+const { Pool } = pg;
 
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const conn = await mysql.createConnection({ uri: url, multipleStatements: true });
-  const db = drizzle(conn);
+  const pool = new Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+  });
+  const db = drizzle(pool);
   await migrate(db, { migrationsFolder: "aws/db/migrations" });
-  await conn.end();
+  await pool.end();
   console.log("Migrations complete.");
 }
 
