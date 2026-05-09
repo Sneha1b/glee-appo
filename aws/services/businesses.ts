@@ -1,8 +1,19 @@
-import { eq } from "drizzle-orm";
+import { eq, and, desc, isNull, lte, or } from "drizzle-orm";
 import { db, schema } from "@/aws/db/client";
 
 export async function listBusinesses() {
-  return db.select().from(schema.businesses);
+  return db
+    .select()
+    .from(schema.businesses)
+    .orderBy(schema.businesses.name);
+}
+
+export async function listBusinessesRecent(limit = 8) {
+  return db
+    .select()
+    .from(schema.businesses)
+    .orderBy(desc(schema.businesses.createdAt))
+    .limit(limit);
 }
 
 export async function getBusinessById(id: string) {
@@ -13,6 +24,31 @@ export async function getBusinessById(id: string) {
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+export async function listServiceCategories(businessId: string) {
+  return db
+    .select()
+    .from(schema.serviceCategories)
+    .where(eq(schema.serviceCategories.businessId, businessId))
+    .orderBy(schema.serviceCategories.sortOrder);
+}
+
+export async function listAvailableServicesForBusiness(businessId: string) {
+  const now = new Date();
+  return db
+    .select()
+    .from(schema.services)
+    .where(
+      and(
+        eq(schema.services.businessId, businessId),
+        eq(schema.services.active, true),
+        or(
+          isNull(schema.services.availableFrom),
+          lte(schema.services.availableFrom, now),
+        ),
+      ),
+    );
 }
 
 export async function createBusiness(input: {
