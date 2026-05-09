@@ -151,3 +151,75 @@ export async function listBusinessesByOwnerId(userId: string) {
     .orderBy(schema.businesses.name);
   return rows.map((r) => r.business);
 }
+
+export async function isBusinessOwner(userId: string, businessId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.businessOwners.id })
+    .from(schema.businessOwners)
+    .where(
+      and(
+        eq(schema.businessOwners.userId, userId),
+        eq(schema.businessOwners.businessId, businessId),
+      ),
+    )
+    .limit(1);
+  return !!rows[0];
+}
+
+export async function inviteBusinessManager(input: {
+  businessId: string;
+  email: string;
+  invitedBy: string;
+}) {
+  await db
+    .insert(schema.businessInvites)
+    .values({
+      businessId: input.businessId,
+      email: input.email.toLowerCase(),
+      invitedBy: input.invitedBy,
+    })
+    .onConflictDoNothing();
+  return { ok: true };
+}
+
+export async function acceptPendingInvitesForUser(userId: string, email: string) {
+  const pending = await db
+    .select()
+    .from(schema.businessInvites)
+    .where(
+      and(
+        eq(schema.businessInvites.email, email.toLowerCase()),
+        // not yet accepted
+      ),
+    );
+  for (const inv of pending) {
+    if (inv.acceptedAt) continue;
+    await db
+      .insert(schema.businessOwners)
+      .values({ userId, businessId: inv.businessId })
+      .onConflictDoNothing();
+    await db
+      .update(schema.businessInvites)
+      .set({ acceptedAt: new Date() })
+      .where(eq(schema.businessInvites.id, inv.id));
+  }
+  return { accepted: pending.length };
+}
+
+export async function updateBusinessProfile(input: {
+  id: string;
+  name: string;
+  description?: string | null;
+  logoUrl?: string | null;
+}) {
+  const rows = await db
+    .update(schema.businesses)
+    .set({
+      name: input.name,
+      description: input.description ?? null,
+      logoUrl: input.logoUrl ?? null,
+    })
+    .where(eq(schema.businesses.id, input.id))
+    .returning();
+  return rows[0] ?? null;
+}
