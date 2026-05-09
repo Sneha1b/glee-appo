@@ -48,3 +48,66 @@ export async function getBusinessMetrics(input: {
     totalRevenue: Number(invoiceMetrics?.totalRevenue ?? 0),
   };
 }
+
+export async function getRichBusinessMetrics(input: {
+  businessId: string;
+  windowDays: number;
+}) {
+  const since = new Date(Date.now() - input.windowDays * 86400_000);
+
+  const bookingsRows = await db
+    .select({
+      id: schema.bookings.id,
+      startAt: schema.bookings.startAt,
+      status: schema.bookings.status,
+      serviceName: schema.services.name,
+    })
+    .from(schema.bookings)
+    .innerJoin(schema.services, eq(schema.bookings.serviceId, schema.services.id))
+    .where(
+      and(
+        eq(schema.bookings.businessId, input.businessId),
+        gte(schema.bookings.startAt, since),
+      ),
+    );
+
+  const confirmed = bookingsRows.filter((b) => b.status === "confirmed");
+
+  const topMap = new Map<string, number>();
+  const dowMap = new Map<number, number>();
+  const hourMap = new Map<number, number>();
+  for (const b of confirmed) {
+    topMap.set(b.serviceName, (topMap.get(b.serviceName) ?? 0) + 1);
+    dowMap.set(b.startAt.getDay(), (dowMap.get(b.startAt.getDay()) ?? 0) + 1);
+    hourMap.set(b.startAt.getHours(), (hourMap.get(b.startAt.getHours()) ?? 0) + 1);
+  }
+
+  const top_services = [...topMap.entries()]
+    .map(([name, bookings]) => ({ name, bookings }))
+    .sort((a, b) => b.bookings - a.bookings)
+    .slice(0, 8);
+  const busy_dow = [...dowMap.entries()]
+    .map(([dow, bookings]) => ({ dow, bookings }));
+  const busy_hour = [...hourMap.entries()]
+    .map(([hour, bookings]) => ({ hour, bookings }));
+
+  // Rough funnel from slot_locks vs confirmed bookings
+  const lockRows = await db
+    .select({ count: count(schema.slotLocks.id) })
+    .from(schema.slotLocks)
+    .where(gte(schema.slotLocks.createdAt, since));
+  const lockTotal = Number(lockRows[0]?.count ?? 0);
+
+  return {
+    window_days: input.windowDays,
+    top_services,
+    busy_dow,
+    busy_hour,
+    funnel: {
+      total_lock_attempts: lockTotal,
+      confirmed_bookings: confirmed.length,
+      abandoned_attempts: Math.max(0, lockTotal - confirmed.length),
+      avg_time_to_complete_seconds: 0,
+    },
+  };
+}
