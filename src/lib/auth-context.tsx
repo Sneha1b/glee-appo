@@ -1,15 +1,31 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { getMe, signOut as signOutFn } from "@/lib/auth.functions";
 
-type Role = "customer" | "provider" | null;
+export type Role = "customer" | "provider" | null;
+
+export type AuthUser = { id: string; email: string };
+
+export type CustomerProfile = {
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+};
+
+export type ProviderProfile = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+};
 
 type AuthCtx = {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   loading: boolean;
   role: Role;
-  customerProfile: { full_name: string; phone: string | null } | null;
+  customerProfile: CustomerProfile | null;
+  providerProfile: ProviderProfile | null;
   businessId: string | null;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -18,70 +34,79 @@ type AuthCtx = {
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const fetchMe = useServerFn(getMe);
+  const callSignOut = useServerFn(signOutFn);
+
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [role, setRole] = useState<Role>(null);
-  const [customerProfile, setCustomerProfile] = useState<AuthCtx["customerProfile"]>(null);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadAux(uid: string) {
-    const [{ data: roles }, { data: cp }, { data: bo }] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-      supabase.from("customer_profiles").select("full_name, phone").eq("user_id", uid).maybeSingle(),
-      supabase.from("business_owners").select("business_id").eq("user_id", uid).maybeSingle(),
-    ]);
-    const r = roles?.[0]?.role as Role | undefined;
-    setRole(r ?? null);
-    setCustomerProfile(cp as any);
-    setBusinessId(bo?.business_id ?? null);
-  }
-
-  async function refresh() {
-    const { data } = await supabase.auth.getSession();
-    setSession(data.session);
-    setUser(data.session?.user ?? null);
-    if (data.session?.user) await loadAux(data.session.user.id);
-    else { setRole(null); setCustomerProfile(null); setBusinessId(null); }
-  }
+  const refresh = useCallback(async () => {
+    try {
+      const me = await fetchMe();
+      if (!me) {
+        setUser(null);
+        setRole(null);
+        setCustomerProfile(null);
+        setProviderProfile(null);
+        setBusinessId(null);
+        return;
+      }
+      setUser(me.user);
+      setRole(me.role);
+      setCustomerProfile(me.customerProfile);
+      setProviderProfile(me.providerProfile);
+      setBusinessId(me.businessId);
+    } catch (e) {
+      console.warn("auth refresh failed", e);
+      setUser(null);
+      setRole(null);
+      setCustomerProfile(null);
+      setProviderProfile(null);
+      setBusinessId(null);
+    }
+  }, [fetchMe]);
 
   useEffect(() => {
-    let currentUid: string | null = null;
     let mounted = true;
+    (async () => {
+      await refresh();
+      if (mounted) setLoading(false);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [refresh]);
 
-    // Prime from the restored session FIRST and seed currentUid so the
-    // listener's INITIAL_SESSION event doesn't re-trigger loadAux.
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      currentUid = data.session?.user?.id ?? null;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        // IMPORTANT: keep loading=true until role/profile/business are loaded,
-        // otherwise route guards (e.g. /admins/$id) see role=null and redirect.
-        await loadAux(data.session.user.id);
-      }
-      if (!mounted) return;
-      setLoading(false);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      const newUid = s?.user?.id ?? null;
-      setSession(s);
-      if (newUid !== currentUid) {
-        setUser(s?.user ?? null);
-        currentUid = newUid;
-        if (s?.user) setTimeout(() => loadAux(s.user.id), 0);
-        else { setRole(null); setCustomerProfile(null); setBusinessId(null); }
-      }
-    });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
-  }, []);
-
-  async function signOut() { await supabase.auth.signOut(); }
+  const signOut = useCallback(async () => {
+    try {
+      await callSignOut();
+    } catch (e) {
+      console.warn("signOut failed", e);
+    }
+    setUser(null);
+    setRole(null);
+    setCustomerProfile(null);
+    setProviderProfile(null);
+    setBusinessId(null);
+  }, [callSignOut]);
 
   return (
-    <Ctx.Provider value={{ user, session, loading, role, customerProfile, businessId, refresh, signOut }}>
+    <Ctx.Provider
+      value={{
+        user,
+        loading,
+        role,
+        customerProfile,
+        providerProfile,
+        businessId,
+        refresh,
+        signOut,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
