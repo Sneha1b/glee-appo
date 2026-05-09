@@ -15,7 +15,7 @@ COPY . .
 # targets Cloudflare. Before deploying to AWS you must swap to a Node SSR
 # preset (see plan: "Repo prep" step 3). The build below assumes that swap
 # has been made and the output lands in `.output/` (Nitro/Node convention).
-RUN bun run build
+RUN bunx vite build --config vite.config.aws.ts
 
 # ---------- Runtime stage ----------
 FROM node:20-slim AS runtime
