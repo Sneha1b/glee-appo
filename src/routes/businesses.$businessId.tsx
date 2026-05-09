@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { getBusinessPage } from "@/lib/businesses.functions";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ function BusinessPage() {
   const { businessId } = Route.useParams();
   const { user, role, customerProfile, signOut } = useAuth();
   const navigate = useNavigate();
+  const fetchPage = useServerFn(getBusinessPage);
   const [biz, setBiz] = useState<Business | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -58,24 +60,25 @@ function BusinessPage() {
   const [authPromptServiceId, setAuthPromptServiceId] = useState<string | null>(null);
 
   function handleBookClick(serviceId: string, e: React.MouseEvent) {
-    if (user) return; // already signed in — let the Link navigate normally
+    if (user) return;
     e.preventDefault();
     setAuthPromptServiceId(serviceId);
   }
 
   useEffect(() => {
-    (async () => {
-      const [b, c, s] = await Promise.all([
-        supabase.from("businesses").select("*").eq("id", businessId).maybeSingle(),
-        supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order"),
-        supabase.from("services").select("*").eq("business_id", businessId).eq("active", true).or(`available_from.is.null,available_from.lte.${new Date().toISOString()}`),
-      ]);
-      setBiz(b.data as Business | null);
-      setCats((c.data as Category[]) ?? []);
-      setServices((s.data as Service[]) ?? []);
-      setLoading(false);
-    })();
-  }, [businessId]);
+    fetchPage({ data: { businessId } })
+      .then((res) => {
+        if (!res) {
+          setBiz(null);
+        } else {
+          setBiz(res.business as Business);
+          setCats(res.categories as Category[]);
+          setServices(res.services as Service[]);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [businessId, fetchPage]);
 
   if (loading) return <div className="p-12 text-center text-muted-foreground">Loading…</div>;
   if (!biz) return (
