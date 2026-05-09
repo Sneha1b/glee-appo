@@ -21,6 +21,7 @@ import { Route as BusinessesBusinessIdRouteImport } from './routes/businesses.$b
 import { Route as BookServiceIdRouteImport } from './routes/book.$serviceId'
 import { Route as AuthProviderRouteImport } from './routes/auth.provider'
 import { Route as AuthCustomerRouteImport } from './routes/auth.customer'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AdminsAdminIdRouteImport } from './routes/admins.$adminId'
 import { Route as AuthProviderProfileRouteImport } from './routes/auth.provider.profile'
 import { Route as AuthProviderBusinessRouteImport } from './routes/auth.provider.business'
@@ -88,6 +89,11 @@ const AuthCustomerRoute = AuthCustomerRouteImport.update({
   path: '/auth/customer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminsAdminIdRoute = AdminsAdminIdRouteImport.update({
   id: '/admins/$adminId',
   path: '/admins/$adminId',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/reservations': typeof ReservationsRoute
   '/admins/$adminId': typeof AdminsAdminIdRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/auth/customer': typeof AuthCustomerRouteWithChildren
   '/auth/provider': typeof AuthProviderRouteWithChildren
   '/book/$serviceId': typeof BookServiceIdRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reservations'
     | '/admins/$adminId'
+    | '/api/health'
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
@@ -208,6 +218,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reservations'
     | '/admins/$adminId'
+    | '/api/health'
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reservations'
     | '/admins/$adminId'
+    | '/api/health'
     | '/auth/customer'
     | '/auth/provider'
     | '/book/$serviceId'
@@ -249,6 +261,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ReservationsRoute: typeof ReservationsRoute
   AdminsAdminIdRoute: typeof AdminsAdminIdRouteWithChildren
+  ApiHealthRoute: typeof ApiHealthRoute
   AuthCustomerRoute: typeof AuthCustomerRouteWithChildren
   AuthProviderRoute: typeof AuthProviderRouteWithChildren
   BookServiceIdRoute: typeof BookServiceIdRoute
@@ -347,6 +360,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCustomerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admins/$adminId': {
       id: '/admins/$adminId'
       path: '/admins/$adminId'
@@ -435,6 +455,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ReservationsRoute: ReservationsRoute,
   AdminsAdminIdRoute: AdminsAdminIdRouteWithChildren,
+  ApiHealthRoute: ApiHealthRoute,
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthProviderRoute: AuthProviderRouteWithChildren,
   BookServiceIdRoute: BookServiceIdRoute,
@@ -449,12 +470,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
