@@ -82,17 +82,23 @@ function NewBusiness() {
     if (!user) navigate({ to: "/auth/provider", search: { mode: "login" } });
   }, [loading, user]);
 
+  const presignFn = useServerFn(presignBusinessImageFn);
+  const createBizFn = useServerFn(createBusinessFullFn);
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("business-images").upload(path, file, { upsert: false });
-      if (error) throw error;
-      const { data } = supabase.storage.from("business-images").getPublicUrl(path);
-      setInfo((s) => ({ ...s, logoUrl: data.publicUrl }));
+      const ext = file.name.split(".").pop() || "bin";
+      const presign = await presignFn({ data: { contentType: file.type || "application/octet-stream", ext } });
+      const put = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+      setInfo((s) => ({ ...s, logoUrl: presign.publicUrl }));
       toast.success("Image uploaded");
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
