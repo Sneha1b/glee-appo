@@ -52,7 +52,7 @@ function BookPage() {
   useEffect(() => {
     if (user) {
       setForm({
-        name: customerProfile?.full_name || (user.user_metadata?.full_name as string) || "",
+        name: customerProfile?.full_name || "",
         email: user.email || "",
         phone: customerProfile?.phone || "",
       });
