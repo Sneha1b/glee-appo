@@ -1,7 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
+import {
+  createMyBusiness,
+  updateMyBusiness,
+  getBusinessForEdit,
+} from "@/lib/profile.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +16,15 @@ import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth/provider/business")({
   component: BusinessProfile,
-  head: () => ({ meta: [{ title: "Business profile — SlotKit" }] }),
+  head: () => ({ meta: [{ title: "Business profile — Schedora" }] }),
 });
 
 function BusinessProfile() {
   const { user, loading, businessId, refresh } = useAuth();
   const navigate = useNavigate();
+  const callCreate = useServerFn(createMyBusiness);
+  const callUpdate = useServerFn(updateMyBusiness);
+  const callGet = useServerFn(getBusinessForEdit);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     name: "", category: "", phone: "",
@@ -27,7 +35,7 @@ function BusinessProfile() {
     if (loading) return;
     if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     if (businessId) {
-      supabase.from("businesses").select("*").eq("id", businessId).maybeSingle().then(({ data }) => {
+      callGet({ data: { businessId } }).then((data) => {
         if (data) setForm({
           name: data.name ?? "", category: data.category ?? "", phone: data.phone ?? "",
           address_line1: data.address_line1 ?? "", address_line2: data.address_line2 ?? "",
@@ -35,7 +43,7 @@ function BusinessProfile() {
         });
       });
     }
-  }, [loading, user, businessId]);
+  }, [loading, user, businessId, callGet, navigate]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -44,29 +52,21 @@ function BusinessProfile() {
     try {
       let targetBusinessId = businessId;
       if (businessId) {
-        const { error } = await supabase.from("businesses").update(form).eq("id", businessId);
-        if (error) throw error;
+        await callUpdate({ data: { businessId, patch: form } });
       } else {
-        const { data, error } = await supabase.rpc("create_business_with_owner", {
-          p_name: form.name,
-          p_category: form.category || undefined,
-          p_phone: form.phone || undefined,
-          p_address_line1: form.address_line1 || undefined,
-          p_address_line2: form.address_line2 || undefined,
-          p_city: form.city || undefined,
-          p_region: form.region || undefined,
-          p_postal_code: form.postal_code || undefined,
-          p_country: form.country || undefined,
-        });
-        if (error) throw error;
-        targetBusinessId = data as unknown as string;
+        const res = await callCreate({ data: form });
+        targetBusinessId = res.id;
       }
       await refresh();
       toast.success("Business saved");
       if (targetBusinessId) {
         navigate({ to: "/admins/$adminId", params: { adminId: targetBusinessId } });
       }
-    } catch (err: any) { toast.error(err.message); } finally { setBusy(false); }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to save");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) return <div className="p-12 text-center">Loading…</div>;
