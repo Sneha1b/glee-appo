@@ -1,19 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { verifyCognitoToken } from "../../aws/auth/verify";
 import { assignMyRole } from "../../aws/services/role";
+import { requireUser } from "./session";
 
-function requireUid(): Promise<string> {
-  const t = getCookie("id_token");
-  if (!t) throw new Error("unauthenticated");
-  return verifyCognitoToken(t).then((c) => c.sub);
-}
+const roleSchema = z.object({ role: z.enum(["customer", "provider"]) });
 
-export const assignRoleFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ role: z.enum(["customer", "provider"]) }).parse)
+export const assignMyRoleFn = createServerFn({ method: "POST" })
+  .inputValidator((d) => roleSchema.parse(d))
   .handler(async ({ data }) => {
-    const uid = await requireUid();
-    await assignMyRole(uid, data.role);
+    const u = await requireUser();
+    await assignMyRole({ userSub: u.sub, role: data.role });
     return { ok: true };
   });
