@@ -1,64 +1,68 @@
 /**
- * S3 helpers for the business-images bucket.
- * Replaces Supabase Storage's `business-images` bucket.
+ * S3 helpers — presigned PUT for browser uploads and a public URL helper.
  *
- * Conventions ported from the current code:
- *   - public-read bucket
- *   - object key prefix matches the user's id (Cognito sub):
- *       <userSub>/<businessId>/<filename>
+ * Reads from env at call time (NOT module top-level) so secrets aren't
+ * accidentally inlined into client bundles.
+ *
+ * Required env vars (set on the server only):
+ *   AWS_REGION
+ *   AWS_S3_BUCKET                (e.g. "schedora-business-images")
+ *   AWS_ACCESS_KEY_ID            (IAM user/role with PutObject)
+ *   AWS_SECRET_ACCESS_KEY
+ *   AWS_S3_PUBLIC_BASE_URL       (optional; defaults to virtual-hosted URL)
  */
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const region = process.env.AWS_REGION ?? "us-east-1";
-const bucket = process.env.S3_BUCKET;
+function s3Client() {
+  const region = process.env.AWS_REGION;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  if (!region || !accessKeyId || !secretAccessKey) {
+    throw new Error("S3 not configured (missing AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)");
+  }
+  return new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
+}
 
-const s3 = new S3Client({ region });
+function bucketName(): string {
+  const b = process.env.AWS_S3_BUCKET;
+  if (!b) throw new Error("AWS_S3_BUCKET is not set");
+  return b;
+}
 
-function requireBucket(): string {
-  if (!bucket) throw new Error("S3_BUCKET is not set");
-  return bucket;
+function publicUrlFor(key: string): string {
+  const base = process.env.AWS_S3_PUBLIC_BASE_URL;
+  if (base) return `${base.replace(/\/+$/, "")}/${key}`;
+  const region = process.env.AWS_REGION!;
+  return `https://${bucketName()}.s3.${region}.amazonaws.com/${key}`;
 }
 
 export interface PresignedUpload {
-  url: string;
-  key: string;
+  uploadUrl: string;
   publicUrl: string;
+  key: string;
   expiresIn: number;
 }
 
 /**
- * Mint a one-time PUT URL the browser uploads to directly.
- * The handler must verify the caller owns `userSub` before calling this.
+ * Generate a presigned PUT URL the browser can use to upload directly to S3.
+ *
+ * The caller is responsible for authorizing the request (e.g. requireUser
+ * + scoping the key to the user's id).
  */
-export async function presignUpload(opts: {
-  userSub: string;
-  filename: string;
+export async function presignBusinessImageUpload(input: {
+  ownerUserId: string;
   contentType: string;
-  expiresIn?: number;
+  ext: string;
 }): Promise<PresignedUpload> {
-  const safe = opts.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const key = `${opts.userSub}/${Date.now()}-${safe}`;
+  const safeExt = input.ext.replace(/[^a-z0-9]/gi, "").slice(0, 10) || "bin";
+  const key = `${input.ownerUserId}/${crypto.randomUUID()}.${safeExt}`;
   const cmd = new PutObjectCommand({
-    Bucket: requireBucket(),
+    Bucket: bucketName(),
     Key: key,
-    ContentType: opts.contentType,
+    ContentType: input.contentType,
   });
-  const expiresIn = opts.expiresIn ?? 300;
-  const url = await getSignedUrl(s3, cmd, { expiresIn });
-  return {
-    url,
-    key,
-    publicUrl: publicUrlFor(key),
-    expiresIn,
-  };
-}
-
-export async function presignDownload(key: string, expiresIn = 300): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: requireBucket(), Key: key });
-  return getSignedUrl(s3, cmd, { expiresIn });
-}
-
-export function publicUrlFor(key: string): string {
-  return `https://${requireBucket()}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
+  const expiresIn = 60 * 5;
+  const uploadUrl = await getSignedUrl(s3Client(), cmd, { expiresIn });
+  return { uploadUrl, publicUrl: publicUrlFor(key), key, expiresIn };
 }

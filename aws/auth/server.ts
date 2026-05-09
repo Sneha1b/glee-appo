@@ -11,6 +11,8 @@ import { verifyCognitoJwt, type CognitoClaims } from "./verify";
 import { signOutEverywhere } from "./cognito";
 import { getUserByCognitoSub, upsertUserFromCognito } from "../services/users";
 import type { AppRole } from "../services/users";
+import { db, schema } from "../db/client";
+import { and, eq } from "drizzle-orm";
 
 export const ID_TOKEN_COOKIE = "schedora_id";
 export const ACCESS_TOKEN_COOKIE = "schedora_at";
@@ -129,4 +131,24 @@ export async function getOptionalUser(): Promise<AuthedUser | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Verifies the current user owns the given business. Throws 403 if not.
+ * Returns the AuthedUser for chaining.
+ */
+export async function assertBusinessOwner(businessId: string): Promise<AuthedUser> {
+  const u = await requireUser();
+  const rows = await db
+    .select({ id: schema.businessOwners.id })
+    .from(schema.businessOwners)
+    .where(
+      and(
+        eq(schema.businessOwners.userId, u.appUser.id),
+        eq(schema.businessOwners.businessId, businessId),
+      ),
+    )
+    .limit(1);
+  if (!rows[0]) throw new Response("Forbidden", { status: 403 });
+  return u;
 }
