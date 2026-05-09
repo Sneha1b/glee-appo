@@ -22,8 +22,10 @@ ENV PORT=3000
 COPY --from=build /app/package.json /app/bun.lock* /app/bun.lockb* ./
 RUN bun install --frozen-lockfile --production
 
-# Copy built output
+# Copy built output and migrations
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/aws/db/migrations ./aws/db/migrations
+COPY --from=build /app/aws/db/migrate.ts ./aws/db/migrate.ts
 
 # Non-root user (bun image ships with a 'bun' user)
 RUN chown -R bun:bun /app
