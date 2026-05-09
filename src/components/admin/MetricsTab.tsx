@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-} from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { TrendingUp, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { getAdminMetrics } from "@/lib/admin.functions";
 
 type Metrics = {
   window_days: number;
@@ -37,21 +36,18 @@ export function MetricsTab({ businessId }: { businessId: string }) {
   const [data, setData] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchMetrics = useServerFn(getAdminMetrics);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    supabase
-      .rpc("get_business_metrics" as any, { p_business_id: businessId, p_days: days })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) setError(error.message);
-        else setData(data as Metrics);
-        setLoading(false);
-      });
+    fetchMetrics({ data: { businessId, days } })
+      .then((d) => { if (!cancelled) setData(d as Metrics); })
+      .catch((e: any) => { if (!cancelled) setError(e?.message ?? "Failed to load"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [businessId, days]);
+  }, [businessId, days, fetchMetrics]);
 
   if (loading) return <div className="py-12 text-center text-muted-foreground">Loading metrics…</div>;
   if (error) return <div className="py-12 text-center text-destructive">{error}</div>;
@@ -73,22 +69,15 @@ export function MetricsTab({ businessId }: { businessId: string }) {
 
   return (
     <div className="space-y-6 mt-4">
-      {/* Date range */}
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground mr-2">Window:</span>
         {[7, 30, 90, 365].map((n) => (
-          <Button
-            key={n}
-            size="sm"
-            variant={days === n ? "default" : "outline"}
-            onClick={() => setDays(n)}
-          >
+          <Button key={n} size="sm" variant={days === n ? "default" : "outline"} onClick={() => setDays(n)}>
             {n === 365 ? "1 year" : `${n} days`}
           </Button>
         ))}
       </div>
 
-      {/* KPI strip */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPI icon={<CheckCircle2 className="size-4 text-emerald-500" />} label="Confirmed bookings" value={data.funnel.confirmed_bookings.toString()} />
         <KPI icon={<TrendingUp className="size-4 text-violet-500" />} label="Completion rate" value={`${completionRate}%`} sub={`${data.funnel.confirmed_bookings} / ${data.funnel.total_lock_attempts} attempts`} />
@@ -96,7 +85,6 @@ export function MetricsTab({ businessId }: { businessId: string }) {
         <KPI icon={<Clock className="size-4 text-sky-500" />} label="Avg. time to book" value={fmtSeconds(data.funnel.avg_time_to_complete_seconds)} sub="From slot pick → confirm" />
       </div>
 
-      {/* Top services */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Most booked services</CardTitle>
@@ -122,7 +110,6 @@ export function MetricsTab({ businessId }: { businessId: string }) {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Busy day of week */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Busiest days</CardTitle>
@@ -143,7 +130,6 @@ export function MetricsTab({ businessId }: { businessId: string }) {
           </CardContent>
         </Card>
 
-        {/* Busy hour */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Busiest hours</CardTitle>
