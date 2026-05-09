@@ -13,23 +13,21 @@ COPY . .
 RUN bunx vite build --config vite.config.aws.ts
 
 # ---------- Runtime stage ----------
-FROM node:20-slim AS runtime
+FROM oven/bun:1 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Install production dependencies
-COPY --from=build /app/package.json ./
-RUN npm install --omit=dev --ignore-scripts
+# Install production dependencies using the lockfile
+COPY --from=build /app/package.json /app/bun.lock* /app/bun.lockb* ./
+RUN bun install --frozen-lockfile --production
 
 # Copy built output
 COPY --from=build /app/dist ./dist
 
-# Non-root user
-RUN groupadd --system --gid 1001 nodejs \
- && useradd --system --uid 1001 --gid nodejs nodeuser \
- && chown -R nodeuser:nodejs /app
-USER nodeuser
+# Non-root user (bun image ships with a 'bun' user)
+RUN chown -R bun:bun /app
+USER bun
 
 EXPOSE 3000
 
