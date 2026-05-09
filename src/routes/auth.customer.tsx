@@ -1,7 +1,11 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { signInFn, signUpFn } from "@/aws/auth.functions";
+import { assignMyRoleFn } from "@/aws/role.functions";
+import { upsertCustomerProfileFn, getCustomerProfileFn } from "@/aws/customer.functions";
+import { listBusinessesFn } from "@/aws/business.functions";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +26,13 @@ function CustomerAuth() {
   const { mode = "login" } = useSearch({ from: "/auth/customer" });
   const navigate = useNavigate();
   const { refresh, user, loading: authLoading } = useAuth();
+  const signIn = useServerFn(signInFn);
+  const signUp = useServerFn(signUpFn);
+  const assignRole = useServerFn(assignMyRoleFn);
+  const upsertProfile = useServerFn(upsertCustomerProfileFn);
+  const getProfile = useServerFn(getCustomerProfileFn);
+  const listBusinesses = useServerFn(listBusinessesFn);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -31,51 +42,20 @@ function CustomerAuth() {
 
   useEffect(() => {
     if (authLoading) return;
-    // Only auto-route on the login screen so the signup form stays interactive.
     if (user && mode === "login") {
       (async () => {
-        try { await supabase.rpc("assign_my_role", { p_role: "customer" }); } catch {}
-        await routeAfterAuth(user.id);
+        try { await assignRole({ data: { role: "customer" } }); } catch {}
+        await routeAfterAuth();
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id, mode]);
 
-  async function ensureRole(_uid: string) {
-    await supabase.rpc("assign_my_role", { p_role: "customer" });
-  }
-
-  async function saveProfile(uid: string) {
-    const full = `${firstName.trim()} ${lastName.trim()}`.trim();
-    const { error } = await supabase.from("customer_profiles").upsert(
-      {
-        user_id: uid,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        full_name: full,
-        phone: phone.trim(),
-      },
-      { onConflict: "user_id" }
-    );
-    if (error) throw error;
-  }
-
-  async function routeAfterAuth(uid: string) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("first_name, last_name, phone")
-      .eq("user_id", uid)
-      .maybeSingle() as any;
+  async function routeAfterAuth() {
+    const cp = await getProfile().catch(() => null);
     const complete = cp && cp.first_name && cp.last_name && cp.phone;
-    if (!complete) {
-      navigate({ to: "/auth/customer/profile" });
-      return;
-    }
-    const { data: bizes } = await supabase
-      .from("businesses")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(2);
+    if (!complete) { navigate({ to: "/auth/customer/profile" }); return; }
+    const bizes = await listBusinesses({ data: { limit: 2 } }).catch(() => []);
     if (bizes && bizes.length === 1) {
       navigate({ to: "/businesses/$businessId", params: { businessId: bizes[0].id } });
     } else {
@@ -90,40 +70,28 @@ function CustomerAuth() {
       if (mode === "signup") {
         if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
           toast.error("Please fill in your name and phone number");
-          setBusy(false);
-          return;
+          setBusy(false); return;
         }
-        const { data, error } = await supabase.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: `${window.location.origin}/businesses` },
-        });
-        if (error) throw error;
-        if (data.user) await ensureRole(data.user.id);
-        if (!data.session) {
-          const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-          if (signInErr) {
-            toast.success("Account created. Please sign in.");
-            navigate({ to: "/auth/customer", search: { mode: "login" } });
-            return;
-          }
-        }
-        await saveProfile(data.user!.id);
+        await signUp({ data: { email, password } });
+        await signIn({ data: { email, password } });
+        await assignRole({ data: { role: "customer" } });
+        await upsertProfile({ data: {
+          first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim(),
+        }});
         await refresh();
-        await routeAfterAuth(data.user!.id);
+        await routeAfterAuth();
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await ensureRole(data.user.id);
+        await signIn({ data: { email, password } });
+        await assignRole({ data: { role: "customer" } });
         await refresh();
-        await routeAfterAuth(data.user.id);
+        await routeAfterAuth();
       }
     } catch (err: any) {
-      toast.error(err.message ?? "Something went wrong");
+      toast.error(err?.message ?? "Something went wrong");
     } finally { setBusy(false); }
   }
 
   const isSignup = mode === "signup";
-
   return (
     <div className="min-h-screen grid place-items-center bg-background p-6">
       <Card className="w-full max-w-md">
