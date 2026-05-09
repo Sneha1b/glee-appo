@@ -1,5 +1,5 @@
 import { eq, and, desc, isNull, lte, or, inArray } from "drizzle-orm";
-import { db, schema } from "@/aws/db/client";
+import { db, schema } from "../db/client";
 
 export async function listBusinesses() {
   return db.select().from(schema.businesses).orderBy(schema.businesses.name);

@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
+import { presignBusinessImageFn, createBusinessFullFn } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,17 +82,23 @@ function NewBusiness() {
     if (!user) navigate({ to: "/auth/provider", search: { mode: "login" } });
   }, [loading, user]);
 
+  const presignFn = useServerFn(presignBusinessImageFn);
+  const createBizFn = useServerFn(createBusinessFullFn);
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("business-images").upload(path, file, { upsert: false });
-      if (error) throw error;
-      const { data } = supabase.storage.from("business-images").getPublicUrl(path);
-      setInfo((s) => ({ ...s, logoUrl: data.publicUrl }));
+      const ext = file.name.split(".").pop() || "bin";
+      const presign = await presignFn({ data: { contentType: file.type || "application/octet-stream", ext } });
+      const put = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+      setInfo((s) => ({ ...s, logoUrl: presign.publicUrl }));
       toast.success("Image uploaded");
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
@@ -181,119 +188,48 @@ function NewBusiness() {
   async function submit() {
     if (!user) return;
     setBusy(true);
-    let businessId: string | null = null;
-    let partial = false;
     try {
-      const { data: newId, error } = await supabase.rpc("create_business_with_owner", {
-        p_name: info.name,
-        p_category: info.category || undefined,
-        p_phone: info.phone || undefined,
-        p_description: info.description || undefined,
-        p_address_line1: location.address_line1 || undefined,
-        p_city: location.city || undefined,
-        p_region: location.region || undefined,
-        p_postal_code: location.postal_code || undefined,
-        p_country: location.country || undefined,
-        p_logo_url: info.logoUrl || undefined,
-      });
-      if (error) throw error;
-      businessId = newId as unknown as string;
-
-      // Hours
-      const hoursRows = hours
-        .map((h, weekday) => ({ ...h, weekday }))
-        .filter((h) => !h.closed && h.close > h.open)
-        .map((h) => ({
-          business_id: businessId!,
-          weekday: h.weekday,
-          open_minute: h.open * 60,
-          close_minute: h.close * 60,
-        }));
-      if (hoursRows.length) {
-        const { error: e } = await supabase.from("business_hours").insert(hoursRows);
-        if (e) { partial = true; console.warn("hours insert", e); }
-      }
-
-      // Categories
-      const catIdMap = new Map<string, string>();
-      if (categories.length) {
-        const rows = categories.map((c, i) => ({ business_id: businessId!, name: c.name, sort_order: i }));
-        const { data: catData, error: catErr } = await supabase
-          .from("service_categories").insert(rows).select("id,name");
-        if (catErr || !catData) { partial = true; console.warn("cats", catErr); }
-        else {
-          // Map by name (insert order preserved for distinct names)
-          for (const c of categories) {
-            const real = catData.find((x: any) => x.name === c.name);
-            if (real) catIdMap.set(c.tempId, real.id);
-          }
-        }
-      }
-
-      // Services
-      const svcIdMap = new Map<string, string>();
-      if (services.length) {
-        const rows = services.map((s) => ({
-          business_id: businessId!,
-          name: s.name,
-          duration_min: s.duration_min,
-          price: s.price,
-          description: s.description || null,
-          category_id: s.categoryTempId ? (catIdMap.get(s.categoryTempId) ?? null) : null,
-        }));
-        const { data: svcData, error: svcErr } = await supabase
-          .from("services").insert(rows).select("id,name");
-        if (svcErr || !svcData) { partial = true; console.warn("services", svcErr); }
-        else {
-          for (const s of services) {
-            const real = svcData.find((x: any) => x.name === s.name);
-            if (real) svcIdMap.set(s.tempId, real.id);
-          }
-        }
-      }
-
-      // Staff + availabilities + staff_services
-      for (const st of staff) {
-        const { data: stData, error: stErr } = await supabase
-          .from("staff").insert({ business_id: businessId, name: st.name }).select("id").single();
-        if (stErr || !stData) { partial = true; console.warn("staff", stErr); continue; }
-        const staffId = stData.id;
-        const availRows = st.hours
+      const payload = {
+        business: {
+          name: info.name,
+          category: info.category || null,
+          phone: info.phone || null,
+          description: info.description || null,
+          addressLine1: location.address_line1 || null,
+          city: location.city || null,
+          region: location.region || null,
+          postalCode: location.postal_code || null,
+          country: location.country || null,
+          logoUrl: info.logoUrl || null,
+        },
+        hours: hours
           .map((h, weekday) => ({ ...h, weekday }))
           .filter((h) => !h.closed && h.close > h.open)
-          .map((h) => ({
-            staff_id: staffId,
-            weekday: h.weekday,
-            start_minute: h.open * 60,
-            end_minute: h.close * 60,
-          }));
-        if (availRows.length) {
-          const { error: e } = await supabase.from("availabilities").insert(availRows);
-          if (e) { partial = true; console.warn("avail", e); }
-        }
-        const ssRows = st.serviceTempIds
-          .map((tid) => svcIdMap.get(tid))
-          .filter((x): x is string => !!x)
-          .map((service_id) => ({ staff_id: staffId, service_id }));
-        if (ssRows.length) {
-          const { error: e } = await supabase.from("staff_services").insert(ssRows);
-          if (e) { partial = true; console.warn("staff_services", e); }
-        }
-      }
-
-      // Manager invites
-      for (const email of managers) {
-        const { error: inviteErr } = await supabase.rpc("invite_business_manager" as any, {
-          p_business_id: businessId, p_email: email,
-        });
-        if (inviteErr) { partial = true; console.warn("invite failed", email, inviteErr.message); }
-      }
-
-      toast.success(partial ? "Business created — finish a few details from the dashboard." : "Business created");
-      navigate({ to: "/admins/$adminId", params: { adminId: businessId } });
+          .map((h) => ({ weekday: h.weekday, openMinute: h.open * 60, closeMinute: h.close * 60 })),
+        categories: categories.map((c) => ({ tempId: c.tempId, name: c.name })),
+        services: services.map((s) => ({
+          tempId: s.tempId,
+          name: s.name,
+          durationMin: s.duration_min,
+          price: s.price,
+          description: s.description || null,
+          categoryTempId: s.categoryTempId || null,
+        })),
+        staff: staff.map((st) => ({
+          name: st.name,
+          serviceTempIds: st.serviceTempIds,
+          availabilities: st.hours
+            .map((h, weekday) => ({ ...h, weekday }))
+            .filter((h) => !h.closed && h.close > h.open)
+            .map((h) => ({ weekday: h.weekday, startMinute: h.open * 60, endMinute: h.close * 60 })),
+        })),
+        managerEmails: managers,
+      };
+      const r = await createBizFn({ data: payload });
+      toast.success("Business created");
+      navigate({ to: "/admins/$adminId", params: { adminId: r.id } });
     } catch (err: any) {
       toast.error(err.message ?? "Failed to create business");
-      if (businessId) navigate({ to: "/admins/$adminId", params: { adminId: businessId } });
     } finally { setBusy(false); }
   }
 

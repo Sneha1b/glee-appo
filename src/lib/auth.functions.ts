@@ -10,21 +10,21 @@ import {
   signIn as cognitoSignIn,
   forgotPassword as cognitoForgotPassword,
   confirmForgotPassword as cognitoConfirmForgotPassword,
-} from "@/aws/auth/cognito";
-import { verifyCognitoJwt } from "@/aws/auth/verify";
+} from "../../aws/auth/cognito";
+import { verifyCognitoJwt } from "../../aws/auth/verify";
 import {
   setAuthCookies,
   clearAuthCookies,
   getAuthTokensFromCookies,
   globalSignOut,
   requireUser,
-} from "@/aws/auth/server";
+} from "../../aws/auth/server";
 import {
   upsertUserFromCognito,
   getUserByCognitoSub,
-} from "@/aws/services/users";
-import { setUserRoleByCognitoSub } from "@/aws/services/role";
-import { getCurrentUserContext } from "@/aws/services/profiles";
+} from "../../aws/services/users";
+import { setUserRoleByCognitoSub } from "../../aws/services/role";
+import { getCurrentUserContext } from "../../aws/services/profiles";
 
 const AppRoleSchema = z.enum(["customer", "provider"]);
 
