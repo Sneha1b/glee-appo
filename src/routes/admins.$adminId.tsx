@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,33 @@ import { Calendar } from "@/components/ui/calendar";
 import { fmtDateTime, fmtTime } from "@/lib/format";
 import { jsPDF } from "jspdf";
 import { toast } from "sonner";
+import {
+  checkBusinessOwnership,
+  listAdminBookings,
+  listAdminServices,
+  listAdminCategories,
+  upsertAdminService,
+  setAdminServiceActive,
+  createAdminCategory,
+  deleteAdminCategory,
+  listAdminStaff,
+  createAdminStaff,
+  deleteAdminStaff,
+  toggleStaffServiceFn,
+  setStaffWeekdayHours,
+  listAdminTimeBlocks,
+  createAdminTimeBlock,
+  deleteAdminTimeBlock,
+  listAdminStoreHours,
+  setStoreHoursFn,
+  listAdminClosures,
+  createAdminClosure,
+  deleteAdminClosure,
+  getBusinessProfileFn,
+  updateBusinessProfileFn,
+  listAdminInvoices,
+  presignBusinessImageFn,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admins/$adminId")({
   component: Admin,
@@ -73,25 +100,24 @@ function Admin() {
   const { user, loading, role, signOut } = useAuth();
   const navigate = useNavigate();
   const [ownership, setOwnership] = useState<"checking" | "owner" | "denied">("checking");
+  const checkOwn = useServerFn(checkBusinessOwnership);
 
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
-    // role may briefly be null right after sign-in while aux data loads — wait for it.
     if (role === null) return;
     if (role !== "provider") { navigate({ to: "/auth/provider", search: { mode: "login" } }); return; }
     let cancelled = false;
     setOwnership("checking");
     (async () => {
-      const { data, error } = await supabase
-        .from("business_owners")
-        .select("business_id")
-        .eq("user_id", user.id)
-        .eq("business_id", adminId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error || !data) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
-      setOwnership("owner");
+      try {
+        const res = await checkOwn({ data: { businessId: adminId } });
+        if (cancelled) return;
+        if (!res.ok) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); return; }
+        setOwnership("owner");
+      } catch {
+        if (!cancelled) { setOwnership("denied"); navigate({ to: "/provider", replace: true }); }
+      }
     })();
     return () => { cancelled = true; };
   }, [loading, user?.id, role, adminId]);
@@ -131,7 +157,7 @@ function Admin() {
           <TabsContent value="services"><ServicesTab businessId={businessId} /></TabsContent>
           <TabsContent value="staff"><StaffTab businessId={businessId} /></TabsContent>
           <TabsContent value="store"><StoreTab businessId={businessId} /></TabsContent>
-          <TabsContent value="blocks"><BlocksTab /></TabsContent>
+          <TabsContent value="blocks"><BlocksTab businessId={businessId} /></TabsContent>
           <TabsContent value="metrics"><MetricsTab businessId={businessId} /></TabsContent>
           <TabsContent value="invoices"><InvoicesTab businessId={businessId} /></TabsContent>
         </Tabs>
@@ -153,29 +179,33 @@ function BookingsTab({ businessId, adminId }: { businessId: string; adminId: str
     service_id: "all",
   });
   const [calMonth, setCalMonth] = useState<Date>(today);
+  const fnList = useServerFn(listAdminBookings);
+  const fnStaff = useServerFn(listAdminStaff);
+  const fnSvc = useServerFn(listAdminServices);
 
   async function load() {
-    let q = supabase
-      .from("bookings")
-      .select("*, service:service_id(name), staff:staff_id(name)")
-      .eq("business_id", businessId)
-      .order("start_at");
-    if (filters.from) q = q.gte("start_at", new Date(filters.from).toISOString());
-    if (filters.to) q = q.lte("start_at", new Date(filters.to + "T23:59:59").toISOString());
-    if (filters.staff_id !== "all") q = q.eq("staff_id", filters.staff_id);
-    if (filters.service_id !== "all") q = q.eq("service_id", filters.service_id);
-    const { data } = await q;
+    const data = await fnList({
+      data: {
+        businessId,
+        from: filters.from ? new Date(filters.from).toISOString() : undefined,
+        to: filters.to ? new Date(filters.to + "T23:59:59").toISOString() : undefined,
+        staffId: filters.staff_id !== "all" ? filters.staff_id : null,
+        serviceId: filters.service_id !== "all" ? filters.service_id : null,
+      },
+    });
     setRows(data ?? []);
   }
   useEffect(() => {
     Promise.all([
-      supabase.from("staff").select("id,name").eq("business_id", businessId).order("name"),
-      supabase.from("services").select("id,name").eq("business_id", businessId).order("name"),
-    ]).then(([s, sv]) => { setStaff(s.data ?? []); setServices(sv.data ?? []); });
+      fnStaff({ data: { businessId } }),
+      fnSvc({ data: { businessId } }),
+    ]).then(([s, sv]) => {
+      setStaff((s ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+      setServices((sv ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+    });
   }, [businessId]);
   useEffect(() => { load(); }, [businessId, filters]);
 
-  // Group bookings by yyyy-mm-dd for calendar
   const byDay = useMemo(() => {
     const m = new Map<string, any[]>();
     for (const b of rows) {
@@ -309,14 +339,20 @@ function ServicesTab({ businessId }: { businessId: string }) {
   const empty = { name: "", duration_min: 30, price: 0, description: "", category_id: "", available_from: "" };
   const [form, setForm] = useState<any>(empty);
   const [newCat, setNewCat] = useState("");
+  const fnSvc = useServerFn(listAdminServices);
+  const fnCats = useServerFn(listAdminCategories);
+  const fnUpsert = useServerFn(upsertAdminService);
+  const fnSetActive = useServerFn(setAdminServiceActive);
+  const fnAddCat = useServerFn(createAdminCategory);
+  const fnDelCat = useServerFn(deleteAdminCategory);
 
   async function load() {
     const [s, c] = await Promise.all([
-      supabase.from("services").select("*, category:category_id(name)").eq("business_id", businessId).order("name"),
-      supabase.from("service_categories").select("*").eq("business_id", businessId).order("sort_order").order("name"),
+      fnSvc({ data: { businessId } }),
+      fnCats({ data: { businessId } }),
     ]);
-    setServices(s.data ?? []);
-    setCats(c.data ?? []);
+    setServices(s ?? []);
+    setCats(c ?? []);
   }
   useEffect(() => { load(); }, [businessId]);
 
@@ -335,29 +371,30 @@ function ServicesTab({ businessId }: { businessId: string }) {
 
   async function save() {
     if (!form.name || !form.duration_min) return toast.error("Name and duration required");
-    const payload: any = {
-      business_id: businessId,
-      name: form.name,
-      duration_min: form.duration_min,
-      price: form.price,
-      description: form.description || null,
-      category_id: form.category_id || null,
-      available_from: form.available_from ? new Date(form.available_from).toISOString() : null,
-    };
-    const { error } = editingId
-      ? await supabase.from("services").update(payload).eq("id", editingId)
-      : await supabase.from("services").insert(payload);
-    if (error) return toast.error(error.message);
-    toast.success(editingId ? "Service updated" : "Service added");
-    cancelEdit();
-    load();
+    try {
+      await fnUpsert({
+        data: {
+          businessId,
+          id: editingId ?? null,
+          name: form.name,
+          duration_min: Number(form.duration_min),
+          price: Number(form.price),
+          description: form.description || null,
+          category_id: form.category_id || null,
+          available_from: form.available_from ? new Date(form.available_from).toISOString() : null,
+        },
+      });
+      toast.success(editingId ? "Service updated" : "Service added");
+      cancelEdit();
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Save failed"); }
   }
   async function archive(id: string) {
-    await supabase.from("services").update({ active: false }).eq("id", id);
+    await fnSetActive({ data: { businessId, id, active: false } });
     load();
   }
   async function activate(id: string) {
-    await supabase.from("services").update({ active: true }).eq("id", id);
+    await fnSetActive({ data: { businessId, id, active: true } });
     load();
   }
 
@@ -368,22 +405,20 @@ function ServicesTab({ businessId }: { businessId: string }) {
       toast.error("Category already exists");
       return;
     }
-    const { error } = await supabase.from("service_categories").insert({
-      business_id: businessId, name, sort_order: cats.length,
-    });
-    if (error) return toast.error(error.message);
-    setNewCat("");
-    toast.success("Category added");
-    load();
+    try {
+      await fnAddCat({ data: { businessId, name, sortOrder: cats.length } });
+      setNewCat("");
+      toast.success("Category added");
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); }
   }
   async function removeCategory(id: string) {
     if (services.some((s) => s.category_id === id)) {
       toast.error("Category is in use — reassign those services first.");
       return;
     }
-    const { error } = await supabase.from("service_categories").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    load();
+    try { await fnDelCat({ data: { businessId, id } }); load(); }
+    catch (e: any) { toast.error(e?.message ?? "Failed"); }
   }
 
   return (
@@ -508,15 +543,21 @@ function StaffTab({ businessId }: { businessId: string }) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [newName, setNewName] = useState("");
   const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
+  const fnStaff = useServerFn(listAdminStaff);
+  const fnSvc = useServerFn(listAdminServices);
+  const fnAdd = useServerFn(createAdminStaff);
+  const fnDel = useServerFn(deleteAdminStaff);
+  const fnToggleSvc = useServerFn(toggleStaffServiceFn);
+  const fnHours = useServerFn(setStaffWeekdayHours);
 
   async function load() {
     const [st, sv] = await Promise.all([
-      supabase.from("staff").select("*, services:staff_services(service_id), avail:availabilities(*)").eq("business_id", businessId).order("name"),
-      supabase.from("services").select("id,name").eq("business_id", businessId).eq("active", true),
+      fnStaff({ data: { businessId } }),
+      fnSvc({ data: { businessId } }),
     ]);
-    setStaff(st.data ?? []);
-    setServices(sv.data ?? []);
-    if (!selectedId && st.data && st.data.length) setSelectedId(st.data[0].id);
+    setStaff(st ?? []);
+    setServices((sv ?? []).filter((x: any) => x.active !== false).map((x: any) => ({ id: x.id, name: x.name })));
+    if (!selectedId && st && st.length) setSelectedId(st[0].id);
   }
   useEffect(() => { load(); }, [businessId]);
 
@@ -524,21 +565,21 @@ function StaffTab({ businessId }: { businessId: string }) {
 
   async function addStaff() {
     if (!newName.trim()) return toast.error("Name required");
-    const { data, error } = await supabase.from("staff").insert({ business_id: businessId, name: newName.trim() }).select().single();
-    if (error) return toast.error(error.message);
-    setNewName("");
-    toast.success("Staff added");
-    if (data) setSelectedId(data.id);
-    load();
+    try {
+      const r = await fnAdd({ data: { businessId, name: newName.trim() } });
+      setNewName("");
+      toast.success("Staff added");
+      if (r?.id) setSelectedId(r.id);
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); }
   }
   async function removeStaff(id: string) {
-    await supabase.from("staff").delete().eq("id", id);
+    await fnDel({ data: { businessId, staffId: id } });
     setSelectedId("");
     load();
   }
   async function toggleService(staffId: string, serviceId: string, on: boolean) {
-    if (on) await supabase.from("staff_services").insert({ staff_id: staffId, service_id: serviceId });
-    else await supabase.from("staff_services").delete().eq("staff_id", staffId).eq("service_id", serviceId);
+    await fnToggleSvc({ data: { businessId, staffId, serviceId, on } });
     load();
   }
   async function setHours(staffId: string, weekday: number, startH: number, endH: number) {
@@ -551,12 +592,13 @@ function StaffTab({ businessId }: { businessId: string }) {
       return;
     }
     setHourErrors((m) => { const c = { ...m }; delete c[weekday]; return c; });
-    await supabase.from("availabilities").delete().eq("staff_id", staffId).eq("weekday", weekday);
-    if (endH > startH) {
-      await supabase.from("availabilities").insert({
-        staff_id: staffId, weekday, start_minute: startH * 60, end_minute: endH * 60,
-      });
-    }
+    await fnHours({
+      data: {
+        businessId, staffId, weekday,
+        startMinute: endH > startH ? startH * 60 : null,
+        endMinute: endH > startH ? endH * 60 : null,
+      },
+    });
     load();
   }
 
@@ -656,36 +698,44 @@ function StaffTab({ businessId }: { businessId: string }) {
   );
 }
 
-function BlocksTab() {
+function BlocksTab({ businessId }: { businessId: string }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [blocks, setBlocks] = useState<any[]>([]);
   const [form, setForm] = useState({ staff_id: "", start: "", end: "", reason: "" });
+  const fnList = useServerFn(listAdminTimeBlocks);
+  const fnStaff = useServerFn(listAdminStaff);
+  const fnAdd = useServerFn(createAdminTimeBlock);
+  const fnDel = useServerFn(deleteAdminTimeBlock);
 
   async function load() {
     const [s, b] = await Promise.all([
-      supabase.from("staff").select("id,name").order("name"),
-      supabase.from("time_blocks").select("*, staff:staff_id(name)").gte("end_at", new Date().toISOString()).order("start_at"),
+      fnStaff({ data: { businessId } }),
+      fnList({ data: { businessId } }),
     ]);
-    setStaff(s.data ?? []);
-    setBlocks(b.data ?? []);
+    setStaff((s ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+    setBlocks(b ?? []);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [businessId]);
 
   async function add() {
     if (!form.staff_id || !form.start || !form.end) return toast.error("All fields required");
-    const { error } = await supabase.from("time_blocks").insert({
-      staff_id: form.staff_id,
-      start_at: new Date(form.start).toISOString(),
-      end_at: new Date(form.end).toISOString(),
-      reason: form.reason || null,
-    });
-    if (error) return toast.error(error.message);
-    setForm({ staff_id: "", start: "", end: "", reason: "" });
-    toast.success("Block added");
-    load();
+    try {
+      await fnAdd({
+        data: {
+          businessId,
+          staffId: form.staff_id,
+          startAt: new Date(form.start).toISOString(),
+          endAt: new Date(form.end).toISOString(),
+          reason: form.reason || null,
+        },
+      });
+      setForm({ staff_id: "", start: "", end: "", reason: "" });
+      toast.success("Block added");
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); }
   }
   async function remove(id: string) {
-    await supabase.from("time_blocks").delete().eq("id", id);
+    await fnDel({ data: { businessId, id } });
     load();
   }
 
@@ -734,7 +784,6 @@ function BlocksTab() {
 }
 
 function StoreTab({ businessId }: { businessId: string }) {
-  const { user } = useAuth();
   const [hours, setHours] = useState<any[]>([]);
   const [closures, setClosures] = useState<any[]>([]);
   const [hourErrors, setHourErrors] = useState<Record<number, string>>({});
@@ -745,29 +794,41 @@ function StoreTab({ businessId }: { businessId: string }) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  const fnHours = useServerFn(listAdminStoreHours);
+  const fnSetHours = useServerFn(setStoreHoursFn);
+  const fnClosures = useServerFn(listAdminClosures);
+  const fnAddClosure = useServerFn(createAdminClosure);
+  const fnDelClosure = useServerFn(deleteAdminClosure);
+  const fnGetProf = useServerFn(getBusinessProfileFn);
+  const fnUpdProf = useServerFn(updateBusinessProfileFn);
+  const fnPresign = useServerFn(presignBusinessImageFn);
+
   async function load() {
     const [h, c, b] = await Promise.all([
-      supabase.from("business_hours").select("*").eq("business_id", businessId).order("weekday"),
-      supabase.from("business_closures").select("*").eq("business_id", businessId).gte("to_date", new Date().toISOString().slice(0, 10)).order("from_date"),
-      supabase.from("businesses").select("name, description, logo_url").eq("id", businessId).maybeSingle(),
+      fnHours({ data: { businessId } }),
+      fnClosures({ data: { businessId } }),
+      fnGetProf({ data: { businessId } }),
     ]);
-    setHours(h.data ?? []);
-    setClosures(c.data ?? []);
-    if (b.data) setProfile({ name: b.data.name ?? "", description: b.data.description ?? "", logo_url: b.data.logo_url ?? null });
+    setHours(h ?? []);
+    setClosures(c ?? []);
+    if (b) setProfile({ name: b.name ?? "", description: b.description ?? "", logo_url: b.logo_url ?? null });
   }
   useEffect(() => { load(); }, [businessId]);
 
   async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
     setUploadingLogo(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("business-images").upload(path, file, { upsert: false });
-      if (error) throw error;
-      const { data } = supabase.storage.from("business-images").getPublicUrl(path);
-      setProfile((p) => ({ ...p, logo_url: data.publicUrl }));
+      const ext = file.name.split(".").pop() || "bin";
+      const presign = await fnPresign({ data: { contentType: file.type || "application/octet-stream", ext } });
+      const put = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+      setProfile((p) => ({ ...p, logo_url: presign.publicUrl }));
       toast.success("Logo uploaded — don't forget to save");
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
@@ -777,28 +838,18 @@ function StoreTab({ businessId }: { businessId: string }) {
   async function saveProfile() {
     if (!profile.name.trim()) { toast.error("Name is required"); return; }
     setSavingProfile(true);
-    const { error } = await supabase.from("businesses").update({
-      name: profile.name.trim(),
-      description: profile.description.trim() || null,
-      logo_url: profile.logo_url,
-    }).eq("id", businessId);
-    setSavingProfile(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Business profile updated");
-  }
-
-  async function runCleanup() {
-    const { data, error } = await supabase.rpc("cancel_out_of_hours_bookings", { p_business_id: businessId });
-    if (error) { toast.error(error.message); return; }
-    const n = (data as any[] | null)?.length ?? 0;
-    if (n > 0) {
-      toast.success(`Cancelled ${n} booking${n === 1 ? "" : "s"} that no longer fit your schedule.`);
-      // Notify customers
-      for (const row of (data as any[])) {
-        supabase.functions.invoke("booking-confirmation", { body: { bookingId: row.cancelled_id, action: "cancel" } })
-          .catch((e) => console.warn(e));
-      }
-    }
+    try {
+      await fnUpdProf({
+        data: {
+          businessId,
+          name: profile.name.trim(),
+          description: profile.description.trim() || null,
+          logo_url: profile.logo_url,
+        },
+      });
+      toast.success("Business profile updated");
+    } catch (e: any) { toast.error(e?.message ?? "Save failed"); }
+    finally { setSavingProfile(false); }
   }
 
   async function setDayHours(weekday: number, openH: number, closeH: number) {
@@ -811,34 +862,36 @@ function StoreTab({ businessId }: { businessId: string }) {
       return;
     }
     setHourErrors((m) => { const c = { ...m }; delete c[weekday]; return c; });
-    await supabase.from("business_hours").delete().eq("business_id", businessId).eq("weekday", weekday);
-    if (closeH > openH) {
-      await supabase.from("business_hours").insert({
-        business_id: businessId, weekday, open_minute: openH * 60, close_minute: closeH * 60,
-      });
-    }
+    await fnSetHours({
+      data: {
+        businessId, weekday,
+        openMinute: closeH > openH ? openH * 60 : null,
+        closeMinute: closeH > openH ? closeH * 60 : null,
+      },
+    });
     await load();
-    await runCleanup();
   }
 
   async function addClosure() {
     if (!newClosure.from_date) return toast.error("Pick a start date");
     const to = newClosure.to_date || newClosure.from_date;
-    const { error } = await supabase.from("business_closures").insert({
-      business_id: businessId,
-      from_date: newClosure.from_date,
-      to_date: to,
-      reason: newClosure.reason || null,
-    });
-    if (error) return toast.error(error.message);
-    setNewClosure({ from_date: "", to_date: "", reason: "" });
-    toast.success("Closure added");
-    await load();
-    await runCleanup();
+    try {
+      await fnAddClosure({
+        data: {
+          businessId,
+          from_date: newClosure.from_date,
+          to_date: to,
+          reason: newClosure.reason || null,
+        },
+      });
+      setNewClosure({ from_date: "", to_date: "", reason: "" });
+      toast.success("Closure added");
+      await load();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); }
   }
 
   async function removeClosure(id: string) {
-    await supabase.from("business_closures").delete().eq("id", id);
+    await fnDelClosure({ data: { businessId, id } });
     load();
   }
 
@@ -912,7 +965,6 @@ function StoreTab({ businessId }: { businessId: string }) {
           </CardTitle>
           <CardDescription>
             Set when the business is open. Set both to 0 for a closed day.
-            Bookings that fall outside the new hours are cancelled automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1016,21 +1068,30 @@ function InvoicesTab({ businessId }: { businessId: string }) {
   const [filters, setFilters] = useState({
     from: "", to: "", staff_id: "all", service_id: "all",
   });
+  const fnInv = useServerFn(listAdminInvoices);
+  const fnStaff = useServerFn(listAdminStaff);
+  const fnSvc = useServerFn(listAdminServices);
 
   async function load() {
-    let q = supabase.from("invoices").select("*").eq("business_id", businessId).order("issued_at", { ascending: false });
-    if (filters.from) q = q.gte("issued_at", new Date(filters.from).toISOString());
-    if (filters.to) q = q.lte("issued_at", new Date(filters.to + "T23:59:59").toISOString());
-    if (filters.staff_id !== "all") q = q.eq("staff_id", filters.staff_id);
-    if (filters.service_id !== "all") q = q.eq("service_id", filters.service_id);
-    const { data } = await q;
+    const data = await fnInv({
+      data: {
+        businessId,
+        from: filters.from ? new Date(filters.from).toISOString() : undefined,
+        to: filters.to ? new Date(filters.to + "T23:59:59").toISOString() : undefined,
+        staffId: filters.staff_id !== "all" ? filters.staff_id : null,
+        serviceId: filters.service_id !== "all" ? filters.service_id : null,
+      },
+    });
     setRows(data ?? []);
   }
   useEffect(() => {
     Promise.all([
-      supabase.from("staff").select("id,name").eq("business_id", businessId),
-      supabase.from("services").select("id,name").eq("business_id", businessId),
-    ]).then(([s, sv]) => { setStaff(s.data ?? []); setServices(sv.data ?? []); });
+      fnStaff({ data: { businessId } }),
+      fnSvc({ data: { businessId } }),
+    ]).then(([s, sv]) => {
+      setStaff((s ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+      setServices((sv ?? []).map((x: any) => ({ id: x.id, name: x.name })));
+    });
   }, [businessId]);
   useEffect(() => { load(); }, [businessId, filters]);
 
