@@ -70,7 +70,7 @@ function Landing() {
                   </Button>
                 ) : (
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to="/auth/customer/profile"><User /> {customerProfile?.full_name?.split(" ")[0] || "Profile"}</Link>
+                    <Link to="/profile"><User /> {customerProfile?.full_name?.split(" ")[0] || "Profile"}</Link>
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => signOut()}>

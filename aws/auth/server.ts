@@ -154,4 +154,4 @@ export async function assertBusinessOwner(
   }
 
   return user;
-}}
+}
