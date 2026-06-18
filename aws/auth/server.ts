@@ -1,18 +1,15 @@
-/**
- * Server-only auth helpers — cookies + Cognito JWT verification.
- * Never import from src/ client code.
- */
 import {
   getCookie,
   setCookie,
   deleteCookie,
 } from "@tanstack/react-start/server";
+import { and, eq } from "drizzle-orm";
+
 import { verifyCognitoJwt, type CognitoClaims } from "./verify";
 import { signOutEverywhere } from "./cognito";
 import { getUserByCognitoSub, upsertUserFromCognito } from "../services/users";
 import type { AppRole } from "../services/users";
 import { db, schema } from "../db/client";
-import { and, eq } from "drizzle-orm";
 
 export const ID_TOKEN_COOKIE = "schedora_id";
 export const ACCESS_TOKEN_COOKIE = "schedora_at";
@@ -33,16 +30,18 @@ const baseCookieOptions = {
 };
 
 export function setAuthCookies(tokens: CookieTokens): void {
-  // Access/id tokens expire in seconds; keep refresh long-lived (30 days).
   const accessMaxAge = Math.max(60, tokens.expiresIn);
+
   setCookie(ID_TOKEN_COOKIE, tokens.idToken, {
     ...baseCookieOptions,
     maxAge: accessMaxAge,
   });
+
   setCookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
     ...baseCookieOptions,
     maxAge: accessMaxAge,
   });
+
   setCookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
     ...baseCookieOptions,
     maxAge: 60 * 60 * 24 * 30,
@@ -71,31 +70,32 @@ export async function globalSignOut(accessToken: string): Promise<void> {
   try {
     await signOutEverywhere(accessToken);
   } catch (e) {
-    // Best-effort — token may already be invalid.
     console.warn("globalSignOut failed", e);
   }
 }
+
+export type AppUser = NonNullable<
+  Awaited<ReturnType<typeof getUserByCognitoSub>>
+>;
 
 export interface AuthedUser {
   cognitoSub: string;
   email: string;
   claims: CognitoClaims;
-  appUser: NonNullable<Awaited<ReturnType<typeof getUserByCognitoSub>>>;
+  appUser: AppUser;
 }
 
-/**
- * Reads id_token from cookies, verifies it, ensures an app_users row exists,
- * and returns the authed context. Throws a 401 Response if not signed in.
- */
 export async function requireUser(opts?: {
   defaultRole?: AppRole;
 }): Promise<AuthedUser> {
   const { idToken } = getAuthTokensFromCookies();
+
   if (!idToken) {
     throw new Response("Unauthorized", { status: 401 });
   }
 
   let claims: CognitoClaims;
+
   try {
     claims = await verifyCognitoJwt(idToken);
   } catch {
@@ -104,8 +104,12 @@ export async function requireUser(opts?: {
 
   const email = claims.email ?? "";
   let appUser = await getUserByCognitoSub(claims.sub);
+
   if (!appUser) {
-    if (!email) throw new Response("Email missing on token", { status: 400 });
+    if (!email) {
+      throw new Response("Email missing on token", { status: 400 });
+    }
+
     appUser = await upsertUserFromCognito({
       cognitoSub: claims.sub,
       email,
@@ -121,10 +125,6 @@ export async function requireUser(opts?: {
   };
 }
 
-/**
- * Like requireUser but returns null instead of throwing — for endpoints that
- * have an authed/anon split.
- */
 export async function getOptionalUser(): Promise<AuthedUser | null> {
   try {
     return await requireUser();
@@ -133,22 +133,25 @@ export async function getOptionalUser(): Promise<AuthedUser | null> {
   }
 }
 
-/**
- * Verifies the current user owns the given business. Throws 403 if not.
- * Returns the AuthedUser for chaining.
- */
-export async function assertBusinessOwner(businessId: string): Promise<AuthedUser> {
-  const u = await requireUser();
+export async function assertBusinessOwner(
+  businessId: string,
+): Promise<AuthedUser> {
+  const user = await requireUser();
+
   const rows = await db
     .select({ id: schema.businessOwners.id })
     .from(schema.businessOwners)
     .where(
       and(
-        eq(schema.businessOwners.userId, u.appUser.id),
+        eq(schema.businessOwners.userId, user.appUser.id),
         eq(schema.businessOwners.businessId, businessId),
       ),
     )
     .limit(1);
-  if (!rows[0]) throw new Response("Forbidden", { status: 403 });
-  return u;
+
+  if (!rows[0]) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+
+  return user;
 }

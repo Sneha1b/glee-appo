@@ -38,10 +38,10 @@ function CustomerAuth() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (user && mode === "login") {
-      navigate({ to: "/auth/customer/profile" });
+    if (user) {
+      navigate({ to: "/businesses" });
     }
-  }, [authLoading, user?.id, mode, navigate]);
+  }, [authLoading, user?.id, navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +69,7 @@ function CustomerAuth() {
       } else {
         await callSignIn({ data: { email, password, role: "customer" } });
         await refresh();
-        navigate({ to: "/auth/customer/profile" });
+        navigate({ to: "/businesses" });
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Something went wrong");

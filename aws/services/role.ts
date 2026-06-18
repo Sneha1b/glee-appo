@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/client";
-
-export type AppRole = "customer" | "provider";
+import type { AppRole } from "./users";
 
 export async function getUserRole(userId: string): Promise<AppRole | null> {
   const rows = await db
